@@ -58,6 +58,46 @@ function dayPeriod(h){
   return "রাত";
 }
 
+/* ---------------- ঢাকার সূর্যোদয়-সূর্যাস্ত (NOAA অ্যালগো, কলঘোণা অ্যাল্প উতল) ---------------- */
+function sunTimesDHK(d){
+  const lat = 23.8103, lng = 90.4125, rad = Math.PI/180, zenith = 90.833;
+  const start = new Date(d.getFullYear(), 0, 0);
+  const N = Math.floor((d - start) / 864e5);
+  const calc = sunrise => {
+    const lngHour = lng / 15;
+    const t = N + ((sunrise ? 6 : 18) - lngHour) / 24;
+    const M = 0.9856 * t - 3.289;
+    let L = (M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634) % 360;
+    if (L < 0) L += 360;
+    let RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad;
+    RA = (RA % 360 + 360) % 360;
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90;
+    RA /= 15;
+    const sinDec = 0.39782 * Math.sin(L * rad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(zenith * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    if (cosH > 1 || cosH < -1) return null;
+    let H = sunrise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    H /= 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    let local = (T - lngHour + 6) % 24; /* ঢাকা UTC+৬ */
+    if (local < 0) local += 24;
+    return local;
+  };
+  return { rise: calc(true), set: calc(false) };
+}
+function fmt12(local){ /* দশমিক ঘণ্টা → {h, m: "০৫"} */
+  let h = Math.floor(local), m = Math.round((local - h) * 60);
+  if (m === 60){ m = 0; h += 1; }
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return { hh: h, h12, mm: String(m).padStart(2, "0") };
+}
+function sunLabel(local){
+  if (local == null) return "";
+  const f = fmt12(local);
+  return `${dayPeriod(f.hh)} ${bn(f.h12)}:${bn(f.mm)}`;
+}
+
 /* -------------------------- icons -------------------------- */
 const I = {
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-5.5h4V21"/></svg>',
@@ -75,6 +115,8 @@ const I = {
   go:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
   dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
   android:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.6 10.9 18.2 8a.9.9 0 1 0-1.6-.8l-1.5 2.7a8.6 8.6 0 0 0-6.2 0L7.4 7.2A.9.9 0 1 0 5.8 8l1.6 2.9A8.2 8.2 0 0 0 3.5 18v1.5h17V18a8.2 8.2 0 0 0-3.9-7.1Z"/><path d="M9 14h.01M15 14h.01"/></svg>',
+  sunrise:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9V3"/><path d="m9 6 3-3 3 3"/><path d="m5.6 12.6 1.4 1.4"/><path d="M3 18h2"/><path d="M19 18h2"/><path d="m18.4 12.6-1.4 1.4"/><path d="M21 21H3"/><path d="M17.5 18a5.5 5.5 0 0 0-11 0"/></svg>',
+  sunset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><path d="m9 6 3 3 3-3"/><path d="m5.6 12.6 1.4 1.4"/><path d="M3 18h2"/><path d="M19 18h2"/><path d="m18.4 12.6-1.4 1.4"/><path d="M21 21H3"/><path d="M17.5 18a5.5 5.5 0 0 0-11 0"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>',
   back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5Z"/></svg>',
@@ -273,6 +315,12 @@ function pageHome(){
       <div class="hero-daywrap"><span class="hero-day">${I.diamond} আজ <span id="heroDayTxt">${(RD && RD.day) || WEEKDAYS[wd]}</span> ${I.diamond}</span></div>
       <div class="clock"><span id="clockTime">--:--</span><span class="secs" id="clockSecs">--</span></div>
       <div class="clock-period">এখন <b id="clockPeriod">${dayPeriod(now.getHours())}</b> · বাংলাদেশ স্ট্যান্ডার্ড টাইম</div>
+      <div class="sun-row" title="ঢাকা শহরের সময় অনুযায়ী আনুমানিক সূর্যোদয়-সূর্যাস্ত">
+        <span class="sun-it rise">${I.sunrise}<span class="sun-l">সূর্যোদয়</span><b id="sunriseT">${sunLabel(sunTimesDHK(now).rise)}</b></span>
+        <span class="sun-sep"></span>
+        <span class="sun-it set">${I.sunset}<span class="sun-l">সূর্যাস্ত</span><b id="sunsetT">${sunLabel(sunTimesDHK(now).set)}</b></span>
+        <span class="sun-city">· ঢাকা</span>
+      </div>
       <div class="date-rows">
         ${dateRows.map(r => `
           <div class="date-row">
