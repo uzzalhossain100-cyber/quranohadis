@@ -48,3 +48,7 @@ python3 -m http.server 8000
 ---
 
 > رَبِّ زِدْنِي عِلْمًا — "হে আমার প্রতিপালক! আমার জ্ঞান বৃদ্ধি করুন" (ত্বাহা: ১১৪)
+
+<!-- live: https://quranohadis.vercel.app -->
+
+Vercel auto-deploy test — 18-09-2026 06:10
