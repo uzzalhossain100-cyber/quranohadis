@@ -69,6 +69,8 @@ const I = {
   flower:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="2.6"/><path d="M12 4.6c1.6 0 2.6 1.4 2.6 2.9M12 4.6c-1.6 0-2.6 1.4-2.6 2.9M12 19.4c1.6 0 2.6-1.4 2.6-2.9M12 19.4c-1.6 0-2.6-1.4-2.6-2.9M4.6 12c0-1.6 1.4-2.6 2.9-2.6M19.4 12c0 1.6-1.4 2.6-2.9 2.6M4.6 12c0 1.6 1.4 2.6 2.9 2.6M19.4 12c0-1.6-1.4-2.6-2.9-2.6"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6a8.5 8.5 0 1 0 10.6 10.6Z"/><path d="M17 3.5h3M18.5 2v3"/></svg>',
   chev:'<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+  copy2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
   bkm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.15L5.5 21V4.5a1 1 0 0 1 1-1Z"/></svg>',
   go:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
   dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
@@ -90,6 +92,7 @@ const I = {
 /* -------------------------- state -------------------------- */
 let tab = "home";
 let duaCat = "all", duaQuery = "";
+let detailDua = null; /* দোয়া ডিটেইল ভিউ (DUAS-এর ইনডেক্স) — null হলে তালিকা */
 let quranQuery = "";
 let readerSurah = null;          // number or null
 let audioEl = null, audioSurah = 0, audioPlaying = false;
@@ -224,6 +227,7 @@ function renderTabbar(){
   document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
     if (tab === b.dataset.tab) return;
     tab = b.dataset.tab;
+    detailDua = null;
     if (tab !== "quran"){ stopAudio(); }
     render();
     window.scrollTo({ top:0, behavior:"instant" });
@@ -236,7 +240,7 @@ function render(){
   const v = $("#view");
   v.classList.add("pattern");
   if (tab === "home")        v.innerHTML = pageHome();
-  else if (tab === "dua")    v.innerHTML = pageDua();
+  else if (tab === "dua")    v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (tab === "hadith") v.innerHTML = pageHadith();
   else if (tab === "marks")   v.innerHTML = pageMarks();
   else if (tab === "contact") v.innerHTML = pageContact();
@@ -355,24 +359,55 @@ function pageDua(){
       ${list.length ? list.map((d,i) => {
         const idx = DUAS.indexOf(d);
         return `
-        <article class="dua-card ${openDuas.has(idx)?'open':''}" data-idx="${idx}">
-          <div class="dua-head">
-            <div class="dua-num"><span class="med"></span><span>${bn(i+1)}</span></div>
+        <article class="dua-row" data-idx="${idx}" role="button" tabindex="0" aria-label="${esc(d.title)} — পুরো দোয়া পড়ুন">
+          <div class="dua-num"><span class="med"></span><span>${bn(i+1)}</span></div>
+          <div class="dr-tx">
             <h4>${d.title}</h4>
-            <span class="cat-tag">${catName(d.cat)}</span>
-            <button class="mk ${marks.has("d",idx)?"on":""}" data-mk-kind="d" data-mk-id="${idx}" title="চিহ্নিত রাখুন">${I.bkm}</button>
-            ${I.chev}
+            <p class="dr-ar" lang="ar" dir="rtl">${d.ar}</p>
           </div>
-          <div class="dua-body"><div><div class="dua-inner">
-            <p class="arabic" lang="ar">${d.ar}</p>
-            <div class="uccharon"><span class="lbl">উচ্চারণ</span>${d.uc}</div>
-            <p class="ortho"><b>অর্থ:</b> ${d.bn}</p>
-            <div class="dua-src">${I.book}<span>${d.src}</span></div>
-          </div></div></div>
+          <span class="cat-tag">${catName(d.cat)}</span>
+          <button class="mk ${marks.has("d",idx)?"on":""}" data-mk-kind="d" data-mk-id="${idx}" title="চিহ্নিত রাখুন">${I.bkm}</button>
+          ${I.chev}
         </article>`;
       }).join("") : `<div class="errbox">দুঃখিত — “${esc(q)}” এর সাথে মিলে এমন কোনো দোয়া পাওয়া যায়নি।</div>`}
     </div>
 
+    ${footNote()}
+  </div>`;
+}
+
+/* ---------- দোয়া ডিটেইল ভিউ (ক্লিকে পুরো দোয়া) ---------- */
+function pageDuaDetail(){
+  const idx = detailDua;
+  const d = DUAS[idx];
+  if (!d){ detailDua = null; return pageDua(); }
+  const catName = id => (DUA_CATS.find(c=>c.id===id)||{}).label || "";
+  const marked = marks.has("d", idx);
+  return `
+  <div class="page pg-dua pg-duadetail">
+    <div class="reader-top" style="margin-top:14px">
+      <button class="backbtn" id="duaBack">${I.back} ফিরে যান</button>
+      <span class="growfill"></span>
+      <span class="cat-tag big">${catName(d.cat)}</span>
+    </div>
+
+    <article class="dua-detail">
+      <div class="dd-meta">মাসনূন দোয়া — নং ${bn(idx+1)} / ${bn(DUAS.length)}</div>
+      <h3 class="dd-title">${d.title}</h3>
+      <p class="arabic dd-ar" lang="ar" dir="rtl">${d.ar}</p>
+      <div class="uccharon"><span class="lbl">উচ্চারণ</span>${d.uc}</div>
+      <p class="ortho dd-bn"><b>অর্থ:</b> ${d.bn}</p>
+      <div class="dua-src">${I.book}<span>${d.src}</span></div>
+      <div class="dd-actions">
+        <button class="ddb ${marked?"on":""}" id="duaMk">${I.bkm}<span>${marked?"চিহ্নিত আছে ✓":"চিহ্নিত রাখুন"}</span></button>
+        <button class="ddb" id="duaCopy">${I.copy2}<span>কপি করুন</span></button>
+      </div>
+    </article>
+
+    <div class="dua-nav">
+      <button class="dibtn" id="duaPrev" ${idx<=0?"disabled":""}>${I.back} আগের দোয়া</button>
+      <button class="dibtn" id="duaNext" ${idx>=DUAS.length-1?"disabled":""}>পরের দোয়া ${I.go}</button>
+    </div>
     ${footNote()}
   </div>`;
 }
@@ -481,9 +516,8 @@ function jumpToMark(kind, id){
     scrollFlash(`.hadith-card[data-h="${i}"]`);
     return;
   }
-  const i = +id; openDuas.add(i); duaCat = "all"; duaQuery = "";
+  const i = +id; detailDua = i; duaCat = "all"; duaQuery = "";
   tab = "dua"; render();
-  scrollFlash(`.dua-card[data-idx="${i}"]`);
 }
 function scrollFlash(sel){
   setTimeout(()=>{
@@ -760,16 +794,40 @@ function bind(){
   });
   const chips = $("#duaChips");
   if (chips) chips.querySelectorAll(".chip").forEach(c =>
-    c.addEventListener("click", ()=>{ duaCat = c.dataset.cat; renderTabOnly("dua"); })
+    c.addEventListener("click", ()=>{ duaCat = c.dataset.cat; detailDua = null; renderTabOnly("dua"); })
   );
-  document.querySelectorAll(".dua-card .dua-head").forEach(h =>
-    h.addEventListener("click", ()=>{
-      const card = h.closest(".dua-card");
-      const idx = +card.dataset.idx;
-      openDuas.has(idx) ? openDuas.delete(idx) : openDuas.add(idx);
-      card.classList.toggle("open");
+  /* দোয়া তালিকার রো → ডিটেইল ভিউ */
+  document.querySelectorAll("#duaList .dua-row").forEach(r =>
+    r.addEventListener("click", e => {
+      if (e.target.closest("[data-mk-kind]")) return; /* বুকমার্ক বাটন আলাদা */
+      detailDua = +r.dataset.idx;
+      renderTabOnly("dua");
+      window.scrollTo({ top:0, behavior:"instant" });
     })
   );
+
+  /* দোয়া ডিটেইল ভিউ নেভিগেশন */
+  const db = $("#duaBack");
+  if (db) db.addEventListener("click", ()=>{ detailDua = null; renderTabOnly("dua"); window.scrollTo({ top:0, behavior:"instant" }); });
+  const dp = $("#duaPrev");
+  if (dp) dp.addEventListener("click", ()=>{ if (detailDua > 0){ detailDua--; renderTabOnly("dua"); window.scrollTo({ top:0, behavior:"instant" }); } });
+  const dn = $("#duaNext");
+  if (dn) dn.addEventListener("click", ()=>{ if (detailDua < DUAS.length-1){ detailDua++; renderTabOnly("dua"); window.scrollTo({ top:0, behavior:"instant" }); } });
+  const dm = $("#duaMk");
+  if (dm) dm.addEventListener("click", ()=>{
+    const on = marks.toggle("d", detailDua);
+    dm.classList.toggle("on", on);
+    const sp = dm.querySelector("span"); if (sp) sp.textContent = on ? "চিহ্নিত আছে ✓" : "চিহ্নিত রাখুন";
+  });
+  const dc = $("#duaCopy");
+  if (dc) dc.addEventListener("click", async ()=>{
+    const d = DUAS[detailDua]; if (!d) return;
+    const sp = dc.querySelector("span"); const old = sp ? sp.textContent : "";
+    const text = `${d.title}\n\n${d.ar}\n\nউচ্চারণ: ${d.uc}\n\nঅর্থ: ${d.bn}\nউৎস: ${d.src}\n— কুরআন ও হাদিস`;
+    try { await navigator.clipboard.writeText(text); if (sp) sp.textContent = "কপি হয়েছে ✓"; }
+    catch(e){ if (sp) sp.textContent = "কপি করা গেল না :("; }
+    setTimeout(()=>{ if (sp) sp.textContent = old; }, 1800);
+  });
 
   /* বুকমার্ক টগল (দোয়া/হাদিস — রিডার বাদে, সেটা bindReaderMarks দেখে) */
   [...document.querySelectorAll("[data-mk-kind]")].filter(el=>!el.closest("#readerBody")).forEach(b =>
@@ -995,7 +1053,7 @@ function bind(){
 /* re-render only current tab (keeps search focus stable) */
 function renderTabOnly(which, after){
   const v = $("#view");
-  if (which === "dua") v.innerHTML = pageDua();
+  if (which === "dua") v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (which === "quran") v.innerHTML = readerSurah ? pageReaderShell() : pageQuran();
   bind();
   if (which === "quran" && readerSurah) loadSurahInto(readerSurah);
@@ -1046,6 +1104,13 @@ function startClock(){
 }
 
 /* ---------------- boot ---------------- */
+/* ?tab= / ?dua= ডিপ-লিংক (শেয়ারযোগ্য সরাসরি লিংক) */
+try {
+  const qp = new URLSearchParams(location.search);
+  const qt = qp.get("tab"); if (qt && TABS.some(t=>t.id===qt)) tab = qt;
+  const qdi = qp.get("dua"); if (qdi !== null && qdi !== "" && DUAS[+qdi]) { tab = "dua"; detailDua = +qdi; }
+} catch(e){}
+
 render();
 startClock();
 syncAjkerTarikh();

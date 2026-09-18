@@ -1007,14 +1007,14 @@ body{
 /* ---------- ট্যাবলেট ও ডেস্কটপ কনটেন্ট গ্রিড (900px+) ---------- */
 @media (min-width:900px){
   .view{padding:6px 26px 120px;max-width:1120px;margin:0 auto;width:100%}
-  .pg-dua #duaList{display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:start}
-  .pg-hadith .stagger{display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:start}
+  /* পঠন কনটেন্ট — প্রশস্ত একক কলাম (আর ডানে কাটা পড়বে না) */
+  .pg-dua .searchbar,.pg-dua .chips{max-width:900px;margin-left:auto;margin-right:auto}
+  .pg-dua #duaList{max-width:900px;margin-left:auto;margin-right:auto}
+  .pg-hadith .stagger{max-width:900px;margin-left:auto;margin-right:auto}
+  .pg-hadith .hadith-card{margin-bottom:14px}
+  .pg-marks .stagger{max-width:900px;margin-left:auto;margin-right:auto}
   .pg-quran .stagger{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
-  .pg-marks .stagger{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .pg-marks .mk-sec{display:contents}
-  .pg-marks .mk-sec-head{grid-column:1/-1;margin-top:4px}
-  .pg-marks .mk-hint{grid-column:1/-1}
-  .pg-marks .mk-empty{grid-column:1/-1}
+  .surah-row,.dua-row,.hadith-card,.mk-row{min-width:0}
   .pg-contact{max-width:780px;margin:0 auto}
   .pg-contact .contact-row,
   .pg-contact .msg-card{grid-column:1/-1}
@@ -1065,4 +1065,84 @@ body{
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ============================================================
+   v4 — দোয়া ডিটেইল ভিউ + গ্লোবাল ওভারফ্লো নিরাপত্তা
+   ============================================================ */
+html,body{overflow-x:clip}
+
+/* ---------- দোয়া তালিকার কমপ্যাক্ট রো ---------- */
+.dua-row{
+  display:flex;align-items:center;gap:10px;padding:11px 12px;
+  border-radius:15px;background:#fff;border:1px solid var(--line);cursor:pointer;
+  transition:border-color .2s, box-shadow .2s, transform .15s;min-width:0;
+}
+.dua-row:hover{border-color:#9ccfb9;box-shadow:0 8px 20px -12px rgba(10,54,40,.35)}
+.dua-row:active{transform:scale(.99)}
+.dua-row .dr-tx{flex:1;min-width:0}
+.dua-row h4{font-family:var(--serif);font-size:15.5px;color:var(--ink);margin:0;line-height:1.5}
+.dua-row .dr-ar{
+  font-family:var(--arab);font-size:14.5px;color:var(--mut);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;
+  unicode-bidi:embed;
+}
+.dua-row>.chev{flex:0 0 auto;color:var(--dim);transform:rotate(-90deg)}
+.dua-row:hover>.chev{color:var(--green)}
+
+/* ---------- দোয়া ডিটেইল পেজ ---------- */
+.backbtn{
+  display:inline-flex;align-items:center;gap:8px;padding:9px 17px;border-radius:999px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;cursor:pointer;transition:all .2s;
+}
+.backbtn svg{width:16px;height:16px}
+.backbtn:hover{border-color:var(--green);color:var(--green)}
+.growfill{flex:1}
+.cat-tag.big{font-size:12px;padding:7px 14px;border-radius:999px}
+
+.dua-detail{
+  max-width:900px;margin:16px auto 0;background:#fff;border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:26px 22px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:4px;
+}
+.dd-meta{text-align:center;font-size:12px;color:var(--dim);letter-spacing:.02em}
+.dd-title{
+  text-align:center;font-family:var(--serif);font-weight:600;
+  font-size:22px;color:var(--ink);margin:6px 0 4px;line-height:1.5;
+}
+.dd-ar{
+  font-size:29px;line-height:2.15;text-align:center;color:var(--ink);
+  padding:14px 4px 10px;
+}
+.dd-bn{margin-top:12px}
+.dua-detail .uccharon{margin-top:10px}
+.dua-detail .dua-src{margin-top:14px}
+.dd-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.ddb{
+  display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:13px;
+  border:1px solid var(--line);background:#fff;font-family:var(--sans);
+  font-size:13.5px;color:var(--mut);cursor:pointer;transition:all .2s;
+}
+.ddb svg{width:17px;height:17px;flex:0 0 auto}
+.ddb:hover{border-color:var(--green);color:var(--green)}
+.ddb.on{border-color:var(--green);color:var(--green);background:rgba(14,110,84,.08)}
+
+.dua-nav{display:flex;gap:12px;margin-top:16px}
+.dibtn{
+  flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 12px;border-radius:13px;border:1px solid var(--line);background:#fff;
+  font-family:var(--sans);font-size:13.5px;color:var(--ink);cursor:pointer;transition:all .2s;
+}
+.dibtn svg{width:17px;height:17px}
+.dibtn:hover:not(:disabled){border-color:var(--green);color:var(--green)}
+.dibtn:last-child{background:linear-gradient(140deg,var(--green),#0a5c44);border-color:transparent;color:#f4fbf7}
+.dibtn:last-child:hover:not(:disabled){color:#fff;filter:brightness(1.07)}
+.dibtn:disabled{opacity:.35;cursor:not-allowed}
+
+@media (min-width:900px){
+  .pg-duadetail .dua-detail{padding:32px 36px}
+  .pg-duadetail .dd-ar{font-size:34px}
+  .pg-duadetail .dua-nav{max-width:900px;margin-left:auto;margin-right:auto}
+  .pg-duadetail .reader-top{max-width:900px;margin-left:auto;margin-right:auto}
 }
