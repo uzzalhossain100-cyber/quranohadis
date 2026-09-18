@@ -1146,3 +1146,7 @@ html,body{overflow-x:clip}
   .pg-duadetail .dua-nav{max-width:900px;margin-left:auto;margin-right:auto}
   .pg-duadetail .reader-top{max-width:900px;margin-left:auto;margin-right:auto}
 }
+
+@media (min-width:900px){
+  .pg-dua .chips{display:flex;flex-wrap:wrap;overflow-x:visible}
+}
