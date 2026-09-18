@@ -966,3 +966,102 @@ body{
 @media (min-width:561px){
   body{border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
 }
+
+/* ============================================================
+   APK ডাউনলোড কার্ড + ডেস্কটপ রেসপন্সিভ লেআউট (v3)
+   মোবাইল = মোবাইল ভিউ · ল্যাপটপ/ডেস্কটপ = পূর্ণ ডেস্কটপ ভিউ
+   ============================================================ */
+
+/* ---------- অ্যাপ ডাউনলোড কার্ড ---------- */
+.appdl{
+  display:flex;flex-wrap:wrap;align-items:center;gap:15px;
+  border-radius:var(--r-lg);border:1px solid var(--line);
+  background:linear-gradient(150deg,rgba(14,110,84,.10),transparent 55%),#fff;
+  padding:20px;margin-top:18px;box-shadow:var(--shadow);
+  position:relative;overflow:hidden;
+}
+.appdl-ic{
+  width:56px;height:56px;flex:0 0 56px;border-radius:17px;
+  display:grid;place-items:center;color:#fff;
+  background:linear-gradient(145deg,#3ddc84,#0e8a50);
+  box-shadow:0 8px 20px -8px rgba(14,138,80,.6);
+}
+.appdl-ic svg{width:31px;height:31px}
+.appdl-tx{flex:1;min-width:210px}
+.appdl-tx h3{font-family:var(--serif);font-size:17.5px;color:var(--ink);line-height:1.4}
+.appdl-tx p{font-size:13px;color:var(--mut);margin-top:4px;line-height:1.85}
+.appdl-tx b{color:var(--green);font-weight:600}
+.dlbtn{
+  display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;
+  background:linear-gradient(140deg,var(--gold-2),var(--gold));
+  color:#241a05;font-weight:600;font-size:14.5px;font-family:var(--sans);
+  padding:13px 22px;border-radius:13px;text-decoration:none;
+  box-shadow:0 8px 20px -10px rgba(164,116,12,.65);
+  transition:transform .2s, box-shadow .2s;
+}
+.dlbtn:hover{transform:translateY(-2px);box-shadow:0 12px 26px -10px rgba(164,116,12,.8)}
+.dlbtn svg{width:18px;height:18px}
+.appdl-note{width:100%;font-size:11.5px;color:var(--dim);text-align:center;line-height:1.8}
+.appdl-note b{color:var(--mut)}
+
+/* ---------- ট্যাবলেট ও ডেস্কটপ কনটেন্ট গ্রিড (900px+) ---------- */
+@media (min-width:900px){
+  .view{padding:6px 26px 120px;max-width:1120px;margin:0 auto;width:100%}
+  .pg-dua #duaList{display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:start}
+  .pg-hadith .stagger{display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:start}
+  .pg-quran .stagger{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+  .pg-marks .stagger{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pg-marks .mk-sec{display:contents}
+  .pg-marks .mk-sec-head{grid-column:1/-1;margin-top:4px}
+  .pg-marks .mk-hint{grid-column:1/-1}
+  .pg-marks .mk-empty{grid-column:1/-1}
+  .pg-contact{max-width:780px;margin:0 auto}
+  .pg-contact .contact-row,
+  .pg-contact .msg-card{grid-column:1/-1}
+
+  /* রিডার — প্রশস্ত পঠন এলাকা */
+  .pg-reader .reader-top,
+  .pg-reader .surah-plate,
+  .pg-reader .reader-bismillah,
+  .pg-reader .notice,
+  .pg-reader .reader-nav{max-width:860px;margin-left:auto;margin-right:auto}
+  .pg-reader .ayah{max-width:860px;margin-left:auto;margin-right:auto}
+
+  /* হিরো — ঘড়ি বামে, তারিখ ডানে */
+  .pg-home .hero{display:grid;grid-template-columns:1fr 1.05fr;gap:4px 30px;align-items:center}
+  .pg-home .hero .bismillah{grid-column:1/-1}
+  .pg-home .hero .hero-daywrap{grid-column:1}
+  .pg-home .hero .clock{grid-column:1}
+  .pg-home .hero .clock-period{grid-column:1}
+  .pg-home .hero .date-rows{grid-column:2;grid-row:2/5;margin-top:0}
+  .pg-home .hero .hijri-note{grid-column:1/-1}
+  .pg-home .amol-list{display:grid;grid-template-columns:1fr 1fr;column-gap:26px}
+  .pg-home .appdl-tx h3{font-size:19px}
+}
+
+/* ---------- সত্যিকারের ডেস্কটপ (1024px+) — বাম সাইডবার ---------- */
+@media (min-width:1024px){
+  body{border:none}
+  #app{max-width:1280px;display:grid;grid-template-columns:238px 1fr;grid-template-areas:"nav top" "nav main";column-gap:6px}
+  .topbar{grid-area:top;position:sticky;top:0;z-index:40}
+  .view{grid-area:main;padding:8px 30px 48px;max-width:none}
+  .tabbar{
+    grid-area:nav;position:sticky;top:0;height:100dvh;
+    display:flex;flex-direction:column;justify-content:center;gap:10px;
+    padding:22px 14px;background:transparent;border:none;box-shadow:none;max-width:none;
+  }
+  .tab{
+    flex-direction:row;justify-content:flex-start;gap:13px;
+    padding:13px 18px;border-radius:15px;font-size:14.5px;
+    border:1px solid transparent;
+  }
+  .tab svg{width:23px;height:23px;flex:0 0 auto}
+  .tab span{font-size:14.5px}
+  .tab:hover{background:rgba(14,110,84,.07)}
+  .tab.on{background:#fff;border-color:var(--line-soft);box-shadow:var(--shadow);color:var(--green)}
+  .tab .dot{display:none}
+  .foot{padding:36px 20px 20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}

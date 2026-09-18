@@ -71,6 +71,8 @@ const I = {
   chev:'<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
   bkm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.15L5.5 21V4.5a1 1 0 0 1 1-1Z"/></svg>',
   go:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
+  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+  android:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.6 10.9 18.2 8a.9.9 0 1 0-1.6-.8l-1.5 2.7a8.6 8.6 0 0 0-6.2 0L7.4 7.2A.9.9 0 1 0 5.8 8l1.6 2.9A8.2 8.2 0 0 0 3.5 18v1.5h17V18a8.2 8.2 0 0 0-3.9-7.1Z"/><path d="M9 14h.01M15 14h.01"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>',
   back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5Z"/></svg>',
@@ -261,7 +263,7 @@ function pageHome(){
   ];
 
   return `
-  <div class="page">
+  <div class="page pg-home">
     <section class="hero pattern">
       <div class="bismillah" lang="ar">بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ</div>
       <div class="hero-daywrap"><span class="hero-day">${I.diamond} আজ <span id="heroDayTxt">${(RD && RD.day) || WEEKDAYS[wd]}</span> ${I.diamond}</span></div>
@@ -320,6 +322,7 @@ function pageHome(){
       </div>
     </section>
 
+    ${appDlCard()}
     ${footNote()}
   </div>`;
 }
@@ -334,7 +337,7 @@ function pageDua(){
   const catName = id => (DUA_CATS.find(c=>c.id===id)||{}).label || "";
 
   return `
-  <div class="page">
+  <div class="page pg-dua">
     <div class="sec-head" style="margin-top:14px">
       <h2>দোয়ার ভান্ডার <small>মাসনূন দোয়া — আরবি, উচ্চারণ ও অর্থসহ</small></h2>
       <span class="rule"></span>
@@ -377,7 +380,7 @@ function pageDua(){
 /* ============ HADITH ============ */
 function pageHadith(){
   return `
-  <div class="page">
+  <div class="page pg-hadith">
     <div class="sec-head" style="margin-top:14px">
       <h2>নির্বাচিত হাদিস <small>বিশুদ্ধ হাদিস ও বাস্তব জীবনে প্রয়োগ</small></h2>
       <span class="rule"></span>
@@ -440,7 +443,7 @@ function pageMarks(){
 
   const hasAny = m.q.length || m.h.length || m.d.length;
   return `
-  <div class="page">
+  <div class="page pg-marks">
     <div class="sec-head" style="margin-top:14px">
       <h2>চিহ্নিত পড়া <small>আপনার সংরক্ষিত আয়াত, হাদিস ও দোয়া</small></h2>
       <span class="rule"></span>
@@ -514,7 +517,7 @@ const ADMIN = {
 
 function pageContact(){
   return `
-  <div class="page">
+  <div class="page pg-contact">
     <div class="sec-head" style="margin-top:14px">
       <h2>যোগাযোগ <small>আপনার মতামত আমাদের পথ দেখায়</small></h2>
       <span class="rule"></span>
@@ -581,7 +584,7 @@ function pageQuran(){
     !q || s[2].includes(q) || s[3].includes(q) || s[1].includes(q) || String(s[0]) === q || bn(s[0]) === q
   );
   return `
-  <div class="page">
+  <div class="page pg-quran">
     <div class="sec-head" style="margin-top:14px">
       <h2>আল-কুরআন <small>উচ্চারণ ও বাংলা অনুবাদসহ — ১১৪ সূরা</small></h2>
       <span class="rule"></span>
@@ -609,7 +612,7 @@ function pageQuran(){
 function pageReaderShell(){
   const s = SURAH_META.find(x => x[0] === readerSurah);
   return `
-  <div class="page">
+  <div class="page pg-reader">
     <div class="reader-top" style="margin-top:14px">
       <button class="backbtn" id="readerBack">${I.back} তালিকা</button>
       <button class="audiobtn" id="audioBtn" title="তিলাওয়াত শুনুন (মিশারি আল-আফাসি)">${I.play}</button>
@@ -997,6 +1000,22 @@ function renderTabOnly(which, after){
   bind();
   if (which === "quran" && readerSurah) loadSurahInto(readerSurah);
   if (after) after();
+}
+
+/* ---------------- APK ডাউনলোড কার্ড ---------------- */
+function appDlCard(){
+  /* APK বা Android WebView-র ভেতরে থাকলে কার্ডটি দেখাব না */
+  if (location.protocol === "file:" || /;\s*wv\)/.test(navigator.userAgent)) return "";
+  return `
+  <section class="appdl pattern">
+    <div class="appdl-ic">${I.android}</div>
+    <div class="appdl-tx">
+      <h3>মোবাইল অ্যাপ ডাউনলোড করুন</h3>
+      <p>অ্যান্ড্রয়েড ফোনে ইনস্টল করুন — ইন্টারনেট চালু থাকলে ওয়েবসাইটের সব পরিবর্তন অ্যাপেও <b>নিজে নিজে আপডেট</b> হয়ে যাবে।</p>
+    </div>
+    <a class="dlbtn" href="/quran-o-hadis.apk" download="quran-o-hadis.apk">${I.dl} APK ডাউনলোড</a>
+    <div class="appdl-note">ডাউনলোড শেষে ফাইলে চাপ দিয়ে <b>Install</b> করুন — "অজানা উৎস" (Unknown sources) অনুমতি চাইতে পারে · Android ৫.০+</div>
+  </section>`;
 }
 
 /* ---------------- footer ---------------- */
