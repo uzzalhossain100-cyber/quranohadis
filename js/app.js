@@ -333,7 +333,6 @@ function pageHome(){
             <div><div class="lbl">${r.lbl}</div><div class="val" id="${r.id}">${r.val}</div></div>
           </div>`).join("")}
       </div>
-      <div class="hijri-note" id="dateSrc" ${RD ? "" : "hidden"}>☑ আজকের তারিখ <b>ajkertarikh.com</b> থেকে হালনাগাদকৃত</div>
       <div class="hijri-note">হিজরি তারিখ চাঁদ দেখা সাপেক্ষে একদিন আগে-পরে হতে পারে</div>
     </section>
 
