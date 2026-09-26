@@ -50,7 +50,7 @@ function hijriDate(d){
 }
 
 function dayPeriod(h){
-  if (h >= 5 && h < 6)  return "ভোর";
+  if (h >= 4 && h < 6)  return "ভোর";
   if (h >= 6 && h < 12) return "সকাল";
   if (h >= 12 && h < 16) return "দুপুর";
   if (h >= 16 && h < 18) return "বিকেল";
