@@ -1200,3 +1200,26 @@ html,body{overflow-x:clip}
 .wabtn svg{width:21px;height:21px;flex:0 0 auto}
 .wabtn:hover{transform:translateY(-2px);box-shadow:0 12px 24px -10px rgba(18,140,75,.8)}
 .wabtn:active{transform:scale(.99)}
+
+/* ---------- হিরো: সেহরি-ইফতার পিল ---------- */
+.fast-row{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  margin:-4px 0 14px;
+}
+.fast-pill{
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  background:rgba(214,178,94,.08);border:1px solid var(--line-soft);
+  border-radius:999px;padding:7px 14px;font-size:12px;color:var(--mut);
+  transition:border-color .25s;
+}
+.fast-pill:hover{border-color:var(--line)}
+.fast-pill svg{width:16px;height:16px;flex:0 0 auto}
+.fast-pill.s svg{color:var(--gold-2)}
+.fast-pill.i svg{color:#c06a3a}
+.fast-pill b{
+  font-family:"Noto Sans Bengali","Hind Siliguri",sans-serif;
+  font-weight:700;font-size:13.5px;color:var(--ink);
+}
+@media (min-width:1024px){
+  .pg-home .hero .fast-row{grid-column:1;margin-top:-6px}
+}

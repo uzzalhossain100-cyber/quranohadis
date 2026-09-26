@@ -98,6 +98,60 @@ function sunLabel(local){
   return `${dayPeriod(f.hh)} ${bn(f.h12)}:${bn(f.mm)}`;
 }
 
+/* ---------------- সেহরি-ইফতার (dhakapost.com থেকে সিংক) ---------------- */
+let SI = { se:null, ift:null }; /* দশমিক ঘণ্টায় সেহরি-শেষ ও ইফতার */
+function bn2e(s){ return String(s).replace(/[০-৯]/g, d => "০১২৩৪৫৬৭৮৯".indexOf(d)); }
+function siApply(){
+  const s = $("#seheriT"), i = $("#iftarT"), r = $("#fastRow");
+  if (!r) return;
+  if (s) s.textContent = SI.se  != null ? sunLabel(SI.se)  : "…";
+  if (i) i.textContent = SI.ift != null ? sunLabel(SI.ift) : "…";
+  r.hidden = (SI.se == null && SI.ift == null);
+}
+async function syncSehriIftar(){
+  /* তাৎক্ষণিক ফলব্যাক: জ্যোতির্বিজ্ঞান হিসাব (সেহরি ≈ সূর্যোদয় − ৭২ মি, ইফতার = সূর্যাস্ত) */
+  const st = sunTimesDHK(new Date());
+  if (SI.se == null)  SI.se  = st.rise - 72/60;
+  if (SI.ift == null) SI.ift = st.set;
+  siApply();
+  /* দিনে জমানো এক্স্যাক্ট মান */
+  try { const c = JSON.parse(localStorage.getItem("sehri:"+todayKey) || "null");
+    if (c){ SI = c; siApply(); } } catch(e){}
+  if (SI.remoteKey === todayKey) return; /* আজকে একবারই রিমোট */
+  const URLD = "https://www.dhakapost.com/namaz-sehri-iftar-time";
+  const sources = [
+    "https://r.jina.ai/" + URLD,
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(URLD),
+    "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(URLD)
+  ];
+  const grab = async u => {
+    const res = await fetch(u, { signal: AbortSignal.timeout(16000) });
+    const t = await res.text();
+    if (!res.ok || t.length < 1500) throw new Error("bad");
+    return t;
+  };
+  let txt = null;
+  try { txt = await Promise.any(sources.map(grab)); }
+  catch(e){ for (const u of sources){ try { txt = await grab(u); break; } catch(e2){} } }
+  if (!txt) return;
+  /* "সেহরি শেষ \n ৪:৩৪" এবং "ইফতার \n ৫:৫৪" প্যাটার্ন পার্স */
+  const i1 = txt.indexOf("সেহরি শেষ"); if (i1 < 0) return;
+  const i2 = txt.indexOf("ইফতার", i1); if (i2 < 0) return;
+  const TM = /([০-৯0-9]{1,2})\s*[:\.।]\s*([০-৯0-9]{2})/;
+  const m1 = txt.slice(i1, i1+140).match(TM);
+  const m2 = txt.slice(i2, i2+140).match(TM);
+  if (!m1 || !m2) return;
+  const h1 = +bn2e(m1[1]), mm1 = +bn2e(m1[2]);
+  const h2 = +bn2e(m2[1]), mm2 = +bn2e(m2[2]);
+  if (!(h1>=2 && h1<=6 && mm1<60)) return;   /* সেহরি ভোরে */
+  if (!(h2>=3 && h2<=8 && mm2<60)) return;   /* ইফতার সন্ধ্যায় */
+  const se = h1 + mm1/60;
+  const ift = (h2 === 12 ? 12 : h2 + 12) + mm2/60;
+  SI = { se, ift, remoteKey: todayKey };
+  siApply();
+  try { localStorage.setItem("sehri:"+todayKey, JSON.stringify({ se, ift })); } catch(e){}
+}
+
 /* -------------------------- icons -------------------------- */
 const I = {
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-5.5h4V21"/></svg>',
@@ -118,6 +172,8 @@ const I = {
   android:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.6 10.9 18.2 8a.9.9 0 1 0-1.6-.8l-1.5 2.7a8.6 8.6 0 0 0-6.2 0L7.4 7.2A.9.9 0 1 0 5.8 8l1.6 2.9A8.2 8.2 0 0 0 3.5 18v1.5h17V18a8.2 8.2 0 0 0-3.9-7.1Z"/><path d="M9 14h.01M15 14h.01"/></svg>',
   sunrise:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9V3"/><path d="m9 6 3-3 3 3"/><path d="m5.6 12.6 1.4 1.4"/><path d="M3 18h2"/><path d="M19 18h2"/><path d="m18.4 12.6-1.4 1.4"/><path d="M21 21H3"/><path d="M17.5 18a5.5 5.5 0 0 0-11 0"/></svg>',
   sunset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><path d="m9 6 3 3 3-3"/><path d="m5.6 12.6 1.4 1.4"/><path d="M3 18h2"/><path d="M19 18h2"/><path d="m18.4 12.6-1.4 1.4"/><path d="M21 21H3"/><path d="M17.5 18a5.5 5.5 0 0 0-11 0"/></svg>',
+  sehri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4A8.6 8.6 0 1 1 10.6 3.4a7 7 0 0 0 10 10Z"/></svg>',
+  iftar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v1.5"/><path d="M10.8 3h2.4"/><path d="M12 5.5c-4.9 0-8.5 3.3-8.5 8h17c0-4.7-3.6-8-8.5-8Z"/><path d="M4 16.5h16"/><path d="M11 20h2"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>',
   back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5Z"/></svg>',
@@ -294,6 +350,7 @@ function render(){
   else if (tab === "quran")  v.innerHTML = readerSurah ? pageReaderShell() : pageQuran();
   bind();
   if (tab === "quran" && readerSurah) loadSurahInto(readerSurah);
+  if (tab === "home") siApply();
 }
 
 /* ============ HOME ============ */
@@ -325,6 +382,10 @@ function pageHome(){
         <span class="sun-sep"></span>
         <span class="sun-it set">${I.sunset}<span class="sun-l">সূর্যাস্ত</span><b id="sunsetT">${sunLabel(sunTimesDHK(now).set)}</b></span>
         <span class="sun-city">· ঢাকা</span>
+      </div>
+      <div class="fast-row" id="fastRow" ${SI.se==null&&SI.ift==null?"hidden":""} title="ঢাকার সময় অনুযায়ী — dhakapost.com থেকে হালনাগাদ">
+        <span class="fast-pill s">${I.sehri}<span class="sun-l">সেহরি শেষ</span><b id="seheriT">${SI.se!=null?sunLabel(SI.se):"…"}</b></span>
+        <span class="fast-pill i">${I.iftar}<span class="sun-l">ইফতার</span><b id="iftarT">${SI.ift!=null?sunLabel(SI.ift):"…"}</b></span>
       </div>
       <div class="date-rows">
         ${dateRows.map(r => `
@@ -1187,4 +1248,5 @@ window.addEventListener("popstate", () => {
 
 render();
 startClock();
+syncSehriIftar();
 syncAjkerTarikh();
