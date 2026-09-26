@@ -386,6 +386,93 @@ const amolStore = {
   set(i,v){ try{ localStorage.setItem(`amol:${todayKey}:${i}`, v ? "1" : "0"); }catch(e){} }
 };
 
+/* ===== আমলের বিস্তারিত — ডিটেইল মডাল (কার্ডে ট্যাপে খোলে) ===== */
+let amolDetailIdx = null;
+
+function toggleAmolDone(i){
+  const v = !amolStore.get(i);
+  amolStore.set(i, v);
+  document.querySelectorAll(`.amol-item[data-amol="${i}"]`).forEach(el => el.classList.toggle("done", v));
+  const items = AMOL[new Date().getDay()].items;
+  const done = items.filter((_,k)=>amolStore.get(k)).length;
+  const pct = Math.round(done / items.length * 100);
+  const dash = 2 * Math.PI * 26;
+  const fg = $("#ringFg");   if (fg) fg.style.strokeDashoffset = dash * (1 - pct/100);
+  const pc = $("#ringPct");  if (pc) pc.textContent = bn(pct) + "%";
+  const ac = $("#amolCount");if (ac) ac.textContent = `${bn(done)} / ${bn(items.length)} সম্পন্ন — ✔ চাপলে চিহ্নিত · কার্ডে ট্যাপ করলে বিস্তারিত`;
+  const btn = $("#amolModalDone");
+  if (btn && +btn.dataset.amol === i){
+    btn.classList.toggle("on", v);
+    btn.textContent = v ? "✔ সম্পন্ন হয়েছে" : "✓ সম্পন্ন হিসেবে চিহ্নিত করুন";
+  }
+  return v;
+}
+
+function openAmolDetail(i){
+  closeAmolDetail(true);
+  const day = AMOL[new Date().getDay()];
+  if (!day || !day.items[i]) return;
+  amolDetailIdx = i;
+  const a = day.items[i];
+  const det = (typeof AMOL_DETAIL !== "undefined" && AMOL_DETAIL[a.t]) || {};
+  const v = amolStore.get(i);
+  const overlay = document.createElement("div");
+  overlay.className = "amol-modal-overlay";
+  overlay.id = "amolModal";
+  overlay.innerHTML = `
+  <div class="amol-modal" role="dialog" aria-modal="true" aria-labelledby="amolModalTitle">
+    <header class="amol-modal-head">
+      <div class="amol-modal-headtxt">
+        <span class="amol-modal-day">${WEEKDAYS[new Date().getDay()]}বার · ${bn(i+1)} নম্বর আমল</span>
+        <h3 id="amolModalTitle">${a.t}</h3>
+        <p class="amol-modal-note">আজকের বিষয় — ${day.note}</p>
+      </div>
+      <button class="amol-modal-x" id="amolModalX" aria-label="বন্ধ করুন">✕</button>
+    </header>
+    <div class="amol-modal-body">
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">📖</span> আজকের আমলটি</h4>
+        <p class="amol-main">${a.t}</p>
+      </section>
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">📝</span> বিস্তারিত বর্ণনা</h4>
+        <p>${a.d}</p>
+      </section>
+      ${det.g ? `<section class="amol-sec">
+        <h4><span class="amol-sec-ic">⭐</span> গুরুত্ব</h4>
+        <p>${det.g}</p>
+      </section>` : ""}
+      ${det.f ? `<section class="amol-sec">
+        <h4><span class="amol-sec-ic">🏆</span> ফজিলত</h4>
+        <p>${det.f}</p>
+      </section>` : ""}
+      <p class="amol-modal-ref"><span class="amol-sec-ic">📚</span> দলিল — ${a.r}</p>
+    </div>
+    <footer class="amol-modal-foot">
+      <button class="amol-nav" id="amolModalPrev" ${i===0?"disabled":""}>‹ আগেরটি</button>
+      <button class="amol-done ${v?"on":""}" id="amolModalDone" data-amol="${i}">${v?"✔ সম্পন্ন হয়েছে":"✓ সম্পন্ন হিসেবে চিহ্নিত করুন"}</button>
+      <button class="amol-nav" id="amolModalNext" ${i===day.items.length-1?"disabled":""}>পরেরটি ›</button>
+    </footer>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(()=>overlay.classList.add("show"));
+  overlay.addEventListener("click", (e)=>{ if (e.target === overlay) closeAmolDetail(); });
+  $("#amolModalX").addEventListener("click", ()=>closeAmolDetail());
+  $("#amolModalDone").addEventListener("click", ()=>toggleAmolDone(+($("#amolModalDone").dataset.amol)));
+  const pv = $("#amolModalPrev"); if (pv) pv.addEventListener("click", ()=>{ if (amolDetailIdx > 0) openAmolDetail(amolDetailIdx-1); });
+  const nx = $("#amolModalNext"); if (nx) nx.addEventListener("click", ()=>{ if (amolDetailIdx < day.items.length-1) openAmolDetail(amolDetailIdx+1); });
+}
+
+function closeAmolDetail(instant){
+  const ov = $("#amolModal");
+  amolDetailIdx = null;
+  document.body.classList.remove("modal-open");
+  if (!ov) return;
+  if (instant) ov.remove();
+  else { ov.classList.remove("show"); setTimeout(()=>ov.remove(), 180); }
+}
+
 /* -------------------------- tab bar -------------------------- */
 const TABS = [
   { id:"home",    label:"হোম",      icon:I.home },
@@ -517,18 +604,19 @@ ${WAKTS.map(w=>{ const p = ST ? sunParts(ST[w.k]) : {w:"",t:"…"}; return `
         </div>
         <div class="t">
           <h3>${WEEKDAYS[wd]} বারের আমলতালিকা</h3>
-          <p id="amolCount">${bn(doneCount)} / ${bn(amol.items.length)} সম্পন্ন — ট্যাপ করে চিহ্নিত করুন</p>
+          <p id="amolCount">${bn(doneCount)} / ${bn(amol.items.length)} সম্পন্ন — ✔ চাপলে চিহ্নিত · কার্ডে ট্যাপ করলে বিস্তারিত</p>
         </div>
       </div>
       <div class="amol-list">
         ${amol.items.map((a,i)=>`
           <div class="amol-item ${amolStore.get(i)?'done':''}" data-amol="${i}">
             <span class="tick">${I.check}</span>
-            <div>
+            <div class="amol-body">
               <h4>${a.t}</h4>
               <p>${a.d}</p>
               <span class="ref">${a.r}</span>
             </div>
+            <span class="amol-more" aria-hidden="true">›</span>
           </div>`).join("")}
       </div>
     </section>
@@ -1253,20 +1341,12 @@ function bind(){
     window.open("https://wa.me/8801713236980?text=" + encodeURIComponent(plain), "_blank", "noopener");
   });
 
-  /* amol */
+  /* amol — ✔ চিহ্নে ট্যাপ = সম্পন্ন/অসম্পন্ন, কার্ডের অন্য জায়গায় ট্যাপ = বিস্তারিত মডাল */
   document.querySelectorAll(".amol-item").forEach(item =>
-    item.addEventListener("click", ()=>{
+    item.addEventListener("click", (e)=>{
       const i = +item.dataset.amol;
-      const v = !amolStore.get(i);
-      amolStore.set(i, v);
-      item.classList.toggle("done", v);
-      const items = AMOL[new Date().getDay()].items;
-      const done = items.filter((_,k)=>amolStore.get(k)).length;
-      const pct = Math.round(done / items.length * 100);
-      const dash = 2 * Math.PI * 26;
-      $("#ringFg").style.strokeDashoffset = dash * (1 - pct/100);
-      $("#ringPct").textContent = bn(pct) + "%";
-      $("#amolCount").textContent = `${bn(done)} / ${bn(items.length)} সম্পন্ন — ট্যাপ করে চিহ্নিত করুন`;
+      if (e.target.closest(".tick")){ e.stopPropagation(); toggleAmolDone(i); return; }
+      openAmolDetail(i);
     })
   );
 }
@@ -1336,6 +1416,7 @@ try { history.replaceState({ qh:"root" }, ""); } catch(e){}
 
 /* ফোনের/ব্রাউজারের ব্যাক বাটন — ওপেন ভিউ বন্ধ করে আগের অবস্থায় ফিরে যায় */
 window.addEventListener("popstate", () => {
+  if (amolDetailIdx !== null){ closeAmolDetail(); return; }
   if (detailDua !== null){ detailDua = null; renderTabOnly("dua"); return; }
   if (readerSurah){ readerSurah = null; stopAudio(); renderTabOnly("quran"); return; }
 });
