@@ -1168,8 +1168,9 @@ html,body{overflow-x:clip}
 .sun-it b{font-family:"Noto Sans Bengali","Hind Siliguri",sans-serif;font-weight:700;font-size:13px;color:var(--ink)}
 .sun-sep{width:3px;height:3px;border-radius:50%;background:var(--dim);opacity:.6}
 .sun-city{font-size:10.5px;color:var(--dim)}
-@media (min-width:1024px){
-  .pg-home .hero .sun-row{grid-column:1;margin-bottom:6px}
+@media (min-width:900px){
+  .pg-home .hero .sun-row{grid-column:1;justify-content:flex-start;margin-bottom:6px}
+  .pg-home .hero .fast-row{grid-column:1;justify-content:flex-start}
 }
 
 /* ============================================================
@@ -1220,9 +1221,7 @@ html,body{overflow-x:clip}
   font-family:"Noto Sans Bengali","Hind Siliguri",sans-serif;
   font-weight:700;font-size:13.5px;color:var(--ink);
 }
-@media (min-width:1024px){
-  .pg-home .hero .fast-row{grid-column:1;margin-top:-6px}
-}
+
 
 /* ---------- হিরো: নামাজের সময়সূচি গ্রিড ---------- */
 .salat-head{margin-top:20px}
