@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>আমল ডিটেইল — স্ট্যাটিক প্রিভিউ</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* প্রিভিউর জন্য: ফিক্সড-ওভারলেকে স্ট্যাটিক ফ্লোতে আনা (আসল অ্যাপে এটি ফিক্সড বটম-শিট) */
+  .amol-modal-overlay{position:static !important;background:var(--bg1) !important;backdrop-filter:none !important;opacity:1 !important;display:block !important;padding:16px}
+  .amol-modal{transform:none !important;max-height:none !important;border-bottom:1px solid var(--line) !important;border-radius:26px !important;margin:0 auto}
+  @media (min-width:900px){.amol-modal{max-width:680px}}
+  body{background:linear-gradient(180deg,#f3ecdc,#e9dfc8)}
+</style>
+</head>
+<body class="modal-open">
+
+<div class="amol-modal-overlay show" id="amolModal">
+  <div class="amol-modal" role="dialog" aria-modal="true" aria-labelledby="amolModalTitle">
+    <header class="amol-modal-head">
+      <div class="amol-modal-headtxt">
+        <span class="amol-modal-day">শনিবার · ৩ নম্বর আমল</span>
+        <h3 id="amolModalTitle">আত্মীয়তার সম্পর্ক (সিলাতু-রাহম) রক্ষা</h3>
+        <p class="amol-modal-note">আজকের বিষয় — সপ্তাহের শুরু — নতুন নিয়ত, নতুন উদ্দীপনা</p>
+      </div>
+      <button class="amol-modal-x" aria-label="বন্ধ করুন">✕</button>
+    </header>
+    <div class="amol-modal-body">
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">📖</span> আজকের আমলটি</h4>
+        <p class="amol-main">আত্মীয়তার সম্পর্ক (সিলাতু-রাহম) রক্ষা</p>
+      </section>
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">📝</span> বিস্তারিত বর্ণনা</h4>
+        <p>অন্তত একজন আত্মীয়কে ফোন করুন বা সাক্ষাৎ করুন। সম্পর্ক রক্ষাকারীর জন্য রহমানের বিশেষ প্রতিদান আছে।</p>
+      </section>
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">⭐</span> গুরুত্ব</h4>
+        <p>আত্মীয়তার সম্পর্ক রক্ষা কুরআন-হাদিসের অতি গুরুত্বপূর্ণ আদেশ। নবীজি ﷺ রক্তসম্পর্ক ছিন্নকারীদের জন্য কঠোর সতর্কবাণী উচ্চারণ করেছেন; অপরদিকে সম্পর্ক রক্ষাকারীকে দেওয়া হয়েছে আল্লাহর বিশেষ প্রতিশ্রুতি।</p>
+      </section>
+      <section class="amol-sec">
+        <h4><span class="amol-sec-ic">🏆</span> ফজিলত</h4>
+        <p>সহীহ বুখারিতে আছে — যিনি চান তার রিজিক প্রশস্ত হোক এবং আয়ু দীর্ঘায়িত হোক, সে যেন আত্মীয়তার সম্পর্ক রক্ষা করে। এক সঙ্গে দুনিয়ার বরকত ও আখিরাতের রহমত — এর চেয়ে সহজ পাইপয়সা আর কী আছে!</p>
+      </section>
+      <p class="amol-modal-ref"><span class="amol-sec-ic">📚</span> দলিল — সহীহ বুখারি: ৫৯৮৬</p>
+    </div>
+    <footer class="amol-modal-foot">
+      <button class="amol-nav">‹ আগেরটি</button>
+      <button class="amol-done" data-amol="2">✓ সম্পন্ন হিসেবে চিহ্নিত করুন</button>
+      <button class="amol-nav">পরেরটি ›</button>
+    </footer>
+  </div>
+</div>
+
+</body>
+</html>
