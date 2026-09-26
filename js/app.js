@@ -1432,4 +1432,5 @@ render();
 startClock();
 syncSehriIftar();
 syncAjkerTarikh();
-if (pendingAmolOpen !== null){ const _ai = pendingAmolOpen; pendingAmolOpen = null; setTimeout(()=>{ try{ openAmolDetail(_ai); }catch(err){ const d=document.createElement("div"); d.style.cssText="position:fixed;left:8px;bottom:8px;z-index:2000;font-size:11px;color:#d98a7e;background:rgba(0,0,0,.6);padding:4px 8px;border-radius:8px"; d.textContent="amol-open error: "+err.message; document.body.appendChild(d); } }, 350); }
+if (/amoldbg/.test(location.search)){ setTimeout(()=>{ try{ document.title = `DBG|q=${location.search}|h=${location.hash}|n=${navigator.userAgent.slice(0,40)}|P=${window.__dbgP}|ok=${window.__dbgOk}|err=${window.__dbgErr}|idx=${amolDetailIdx}|ov=${!!document.querySelector(".amol-modal-overlay")}`; }catch(e){ document.title="DBGERR "+e.message; } }, 1200); }
+if (pendingAmolOpen !== null){ const _ai = pendingAmolOpen; window.__dbgP = _ai; pendingAmolOpen = null; setTimeout(()=>{ try{ openAmolDetail(_ai); window.__dbgOk = "1"; }catch(err){ window.__dbgErr = err.message; const d=document.createElement("div"); d.style.cssText="position:fixed;left:8px;bottom:8px;z-index:2000;font-size:11px;color:#d98a7e;background:rgba(0,0,0,.6);padding:4px 8px;border-radius:8px"; d.textContent="amol-open error: "+err.message; document.body.appendChild(d); } }, 350); }
