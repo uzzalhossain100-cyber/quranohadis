@@ -114,9 +114,12 @@ async function syncSehriIftar(){
   if (SI.se == null)  SI.se  = st.rise - 72/60;
   if (SI.ift == null) SI.ift = st.set;
   siApply();
+  if (!ST){ salatComputeFallback(); stApply(); }
   /* দিনে জমানো এক্স্যাক্ট মান */
   try { const c = JSON.parse(localStorage.getItem("sehri:"+todayKey) || "null");
     if (c){ SI = c; siApply(); } } catch(e){}
+  try { const cs = JSON.parse(localStorage.getItem("salat:"+todayKey) || "null");
+    if (cs){ ST = cs; stApply(); } } catch(e){}
   if (SI.remoteKey === todayKey) return; /* আজকে একবারই রিমোট */
   const URLD = "https://www.dhakapost.com/namaz-sehri-iftar-time";
   const sources = [
@@ -150,6 +153,80 @@ async function syncSehriIftar(){
   SI = { se, ift, remoteKey: todayKey };
   siApply();
   try { localStorage.setItem("sehri:"+todayKey, JSON.stringify({ se, ift })); } catch(e){}
+  /* একই পেজ থেকে পাঁচ ওয়াক্তের নামাজসময়ও পার্স করো */
+  const salat = parseSalatFromText(txt);
+  if (salat){ ST = salat; stApply(); try { localStorage.setItem("salat:"+todayKey, JSON.stringify(salat)); } catch(e){} }
+}
+
+/* ---------------- পাঁচ ওয়াক্ত নামাজ (dhakapost সিংক) ---------------- */
+const WAKTS = [
+  { k:"fajr",    n:"ফজর",   ic:"sehri"  },
+  { k:"dhuhr",   n:"জোহর",  ic:"sun"    },
+  { k:"asr",     n:"আসর",   ic:"asr"    },
+  { k:"maghrib", n:"মাগরিব", ic:"sunset" },
+  { k:"isha",    n:"এশা",   ic:"moon"   }
+];
+let ST = null; /* দশমিক ঘণ্টায় {fajr,dhuhr,asr,maghrib,isha} */
+function sunParts(local){
+  if (local == null) return { w:"", t:"…" };
+  const f = fmt12(local);
+  return { w: dayPeriod(f.hh), t: `${bn(f.h12)}:${bn(f.mm)}` };
+}
+function salatComputeFallback(){
+  const st = sunTimesDHK(new Date());
+  /* মোটামুটি ঢাকা-মান: ফজর ≈ সূর্যোদয়−৭২মি, জোহর ≈ মধ্যসূর্য+২মি, আসর ≈ সূর্যাস্ত−২ঘণ্টা১০মি, এশা ≈ সূর্যাস্ত+৭২মি */
+  ST = {
+    fajr: st.rise - 72/60,
+    dhuhr: (st.rise + st.set)/2 + 2/60,
+    asr: st.set - 130/60,
+    maghrib: st.set,
+    isha: st.set + 72/60
+  };
+}
+function salatNow(){
+  if (!ST) return null;
+  const n = new Date(), now = n.getHours() + n.getMinutes()/60;
+  let cur = "isha";
+  for (const w of WAKTS){ if (now >= ST[w.k]) cur = w.k; else break; }
+  return cur;
+}
+function stApply(){
+  const g = $("#salatGrid"); if (!g) return;
+  if (!ST) salatComputeFallback();
+  WAKTS.forEach(w => {
+    const cell = $("#cell-" + w.k); if (!cell) return;
+    const p = sunParts(ST[w.k]);
+    const t = cell.querySelector(".tt"); if (t) t.textContent = p.t;
+    const h = cell.querySelector(".hw"); if (h) h.textContent = p.w;
+  });
+  const k = salatNow();
+  g.querySelectorAll(".salat-cell").forEach(c => c.classList.toggle("now", c.id === "cell-" + k));
+}
+function parseSalatFromText(txt){
+  const cut = txt.indexOf("## আজকের সেহরি");
+  const head = cut > 0 ? txt.slice(0, cut) : txt.slice(0, 2600);
+  const TM = /([০-৯0-9]{1,2})\s*[:\.।]\s*([০-৯0-9]{2})/;
+  const defs = [
+    { k:"fajr",    label:"ফজর",   minH:2,  maxH:6,  pm:false  },
+    { k:"dhuhr",   label:"জোহর",  minH:10, maxH:1,  pm:"auto" },
+    { k:"asr",     label:"আসর",   minH:2,  maxH:6,  pm:true   },
+    { k:"maghrib", label:"মাগরিব", minH:4,  maxH:7,  pm:true   },
+    { k:"isha",    label:"এশা",   minH:6,  maxH:9,  pm:true   }
+  ];
+  const out = {};
+  for (const d of defs){
+    const i = head.indexOf(d.label); if (i < 0) return null;
+    const m = head.slice(i, i + d.label.length + 120).match(TM); if (!m) return null;
+    const h = +bn2e(m[1]), mm = +bn2e(m[2]);
+    const hi = d.minH, lo = d.maxH;
+    const okRange = hi <= lo ? (h >= hi && h <= lo) : (h >= hi || h <= lo); /* জোহর: ১০–১ */
+    if (!(okRange && mm < 60)) return null;
+    let h24 = h;
+    if (d.pm === true) h24 = (h === 12 ? 12 : h + 12);
+    else if (d.pm === "auto") h24 = (h <= 1 ? h + 12 : h);
+    out[d.k] = h24 + mm/60;
+  }
+  return out;
 }
 
 /* -------------------------- icons -------------------------- */
@@ -174,6 +251,7 @@ const I = {
   sunset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><path d="m9 6 3 3 3-3"/><path d="m5.6 12.6 1.4 1.4"/><path d="M3 18h2"/><path d="M19 18h2"/><path d="m18.4 12.6-1.4 1.4"/><path d="M21 21H3"/><path d="M17.5 18a5.5 5.5 0 0 0-11 0"/></svg>',
   sehri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4A8.6 8.6 0 1 1 10.6 3.4a7 7 0 0 0 10 10Z"/></svg>',
   iftar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v1.5"/><path d="M10.8 3h2.4"/><path d="M12 5.5c-4.9 0-8.5 3.3-8.5 8h17c0-4.7-3.6-8-8.5-8Z"/><path d="M4 16.5h16"/><path d="M11 20h2"/></svg>',
+  asr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="3.6"/><path d="M12 6.2v2.2M5.8 8.2 7 9.4M18.2 8.2 17 9.4M4 13h2.2M17.8 13H20"/><path d="M3 20.5h18"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>',
   back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5Z"/></svg>',
@@ -351,6 +429,7 @@ function render(){
   bind();
   if (tab === "quran" && readerSurah) loadSurahInto(readerSurah);
   if (tab === "home") siApply();
+  if (tab === "home") stApply();
 }
 
 /* ============ HOME ============ */
@@ -386,6 +465,7 @@ function pageHome(){
       <div class="fast-row" id="fastRow" ${SI.se==null&&SI.ift==null?"hidden":""} title="ঢাকার সময় অনুযায়ী — dhakapost.com থেকে হালনাগাদ">
         <span class="fast-pill s">${I.sehri}<span class="sun-l">সেহরি শেষ</span><b id="seheriT">${SI.se!=null?sunLabel(SI.se):"…"}</b></span>
         <span class="fast-pill i">${I.iftar}<span class="sun-l">ইফতার</span><b id="iftarT">${SI.ift!=null?sunLabel(SI.ift):"…"}</b></span>
+        <span class="sun-city">(ঢাকার সময় অনুযায়ী)</span>
       </div>
       <div class="date-rows">
         ${dateRows.map(r => `
@@ -401,6 +481,20 @@ function pageHome(){
       <div class="tag">${I.diamond} আজকের বাণী</div>
       <p>“${bani.q}”</p>
       <div class="ref">— ${bani.r}</div>
+    </section>
+
+    <div class="sec-head salat-head">
+      <h2>আজকের নামাজের সময়সূচি <small>পাঁচ ওয়াক্ত — ঢাকার সময় অনুযায়ী</small></h2>
+      <span class="rule"></span>
+    </div>
+
+    <section class="salat-grid" id="salatGrid">
+${WAKTS.map(w=>{ const p = ST ? sunParts(ST[w.k]) : {w:"",t:"…"}; return `
+      <div class="salat-cell" id="cell-${w.k}">
+        <span class="sal-ic ${w.k}">${I[w.ic]}</span>
+        <span class="sal-nm">${w.n}</span>
+        <b><span class="tt">${p.t}</span> <span class="hw">${p.w}</span></b>
+      </div>`;}).join("")}
     </section>
 
     <div class="sec-head">

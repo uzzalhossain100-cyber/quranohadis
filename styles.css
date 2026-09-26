@@ -1223,3 +1223,40 @@ html,body{overflow-x:clip}
 @media (min-width:1024px){
   .pg-home .hero .fast-row{grid-column:1;margin-top:-6px}
 }
+
+/* ---------- হিরো: নামাজের সময়সূচি গ্রিড ---------- */
+.salat-head{margin-top:20px}
+.salat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:2px}
+.salat-cell{
+  position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  text-align:center;transition:transform .2s, box-shadow .2s, border-color .2s;
+}
+.salat-cell:hover{transform:translateY(-2px)}
+.sal-ic{display:grid;place-items:center;height:20px}
+.sal-ic svg{width:19px;height:19px}
+.sal-ic.fajr{color:var(--gold-2)}
+.sal-ic.dhuhr{color:#d99a16}
+.sal-ic.asr{color:#c06a3a}
+.sal-ic.maghrib{color:#c06a3a}
+.sal-ic.isha{color:#7a6ad0}
+.sal-nm{font-family:var(--serif);font-size:13.5px;font-weight:600;color:var(--ink)}
+.salat-cell b{
+  display:flex;flex-direction:column;align-items:center;line-height:1.35;
+  font-family:"Noto Sans Bengali","Hind Siliguri",sans-serif;font-weight:700;
+  font-size:13px;color:var(--mut);letter-spacing:.01em;
+}
+.salat-cell b .hw{font-size:10px;font-weight:500;color:var(--dim)}
+.salat-cell.now{
+  border-color:var(--green);background:linear-gradient(150deg,rgba(14,110,84,.08),transparent 60%),#fff;
+  box-shadow:0 8px 18px -10px rgba(14,110,84,.4);
+}
+.salat-cell.now::before{
+  content:"এখন";position:absolute;top:-8px;right:8px;
+  background:linear-gradient(140deg,var(--green),#0a5c44);color:#fff;
+  font-family:var(--sans);font-size:9.5px;line-height:1;letter-spacing:.04em;
+  padding:3px 9px 4.5px;border-radius:999px;box-shadow:0 4px 10px -4px rgba(14,110,84,.5);
+}
+.salat-cell.now b{color:var(--green)}
+@media (min-width:900px){.salat-grid{max-width:900px;margin-left:auto;margin-right:auto;gap:12px}}
+@media (max-width:360px){.salat-grid{gap:6px}.salat-cell{padding:10px 3px 8px}.sal-nm{font-size:12.5px}}
