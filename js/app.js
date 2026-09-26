@@ -477,12 +477,6 @@ function pageHome(){
       <div class="hijri-note">হিজরি তারিখ চাঁদ দেখা সাপেক্ষে একদিন আগে-পরে হতে পারে</div>
     </section>
 
-    <section class="bani">
-      <div class="tag">${I.diamond} আজকের বাণী</div>
-      <p>“${bani.q}”</p>
-      <div class="ref">— ${bani.r}</div>
-    </section>
-
     <div class="sec-head salat-head">
       <h2>আজকের নামাজের সময়সূচি <small>পাঁচ ওয়াক্ত — ঢাকার সময় অনুযায়ী</small></h2>
       <span class="rule"></span>
@@ -495,6 +489,12 @@ ${WAKTS.map(w=>{ const p = ST ? sunParts(ST[w.k]) : {w:"",t:"…"}; return `
         <span class="sal-nm">${w.n}</span>
         <b><span class="tt">${p.t}</span> <span class="hw">${p.w}</span></b>
       </div>`;}).join("")}
+    </section>
+
+    <section class="bani">
+      <div class="tag">${I.diamond} আজকের বাণী</div>
+      <p>“${bani.q}”</p>
+      <div class="ref">— ${bani.r}</div>
     </section>
 
     <div class="sec-head">
