@@ -258,6 +258,7 @@ const I = {
   pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2"/></svg>',
   book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 6.5C10.6 4.8 8.4 4 5.5 4c-.9 0-1.8.1-2.5.3v14c.7-.2 1.6-.3 2.5-.3 2.9 0 5.1.8 6.5 2.5 1.4-1.7 3.6-2.5 6.5-2.5.9 0 1.8.1 2.5.3v-14c-.7-.2-1.6-.3-2.5-.3-2.9 0-5.1.8-6.5 2.5Z"/><path d="M12 6.5v14"/></svg>',
   info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.4"/></svg>',
+  azan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z"/><path d="M14.8 8.8a4.6 4.6 0 0 1 0 6.4"/><path d="M17.4 6.2a8.4 8.4 0 0 1 0 11.6"/></svg>',
   chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 21l2-5.6A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01"/></svg>',
   phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l1.5 4.5L8 10a12.5 12.5 0 0 0 6 6l1.5-2.5L20 15v4a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/></svg>',
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>',
@@ -474,9 +475,123 @@ function closeAmolDetail(instant){
   else { ov.classList.remove("show"); setTimeout(()=>ov.remove(), 180); }
 }
 
+/* ============ আযান অ্যালার্ম — ওয়াক্তভেদে সময় সেট, সেট সময়ে সুমধুর কণ্ঠে আযান ============ */
+const AZAN_WAKTS = [
+  { k:"fajr",    label:"ফজর",    icon:"moon",    fb:"05:00" },
+  { k:"dhuhr",   label:"জোহর",   icon:"sun",     fb:"13:00" },
+  { k:"asr",     label:"আসর",    icon:"asr",     fb:"16:30" },
+  { k:"maghrib", label:"মাগরিব", icon:"sunset",  fb:"18:15" },
+  { k:"isha",    label:"এশা",    icon:"sehri",   fb:"19:45" }
+];
+
+function azanDefaultTime(k){
+  /* প্রাথমিক সময় — আজকের ঢাকা সময়সূচি (ST) থেকে; না পেলে ফলব্যাক */
+  if (typeof ST !== "undefined" && ST && typeof ST[k] === "number"){
+    const h = Math.floor(ST[k]), m = Math.round((ST[k]-h)*60) % 60;
+    return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+  }
+  const w = AZAN_WAKTS.find(w=>w.k===k);
+  return w ? w.fb : "12:00";
+}
+
+const azanStore = {
+  master(){ return localStorage.getItem("azan:master") === "1"; },
+  setMaster(v){ try{ localStorage.setItem("azan:master", v ? "1" : "0"); }catch(e){} },
+  on(k){ return localStorage.getItem("azan:e:"+k) === "1"; },
+  setOn(k,v){ try{ localStorage.setItem("azan:e:"+k, v ? "1" : "0"); }catch(e){} },
+  time(k){ return localStorage.getItem("azan:t:"+k) || azanDefaultTime(k); },
+  setTime(k,v){ try{ localStorage.setItem("azan:t:"+k, v); }catch(e){} }
+};
+
+let azanAudio = null, azanTestMode = false;
+function azanEl(){
+  if (!azanAudio){
+    azanAudio = new Audio("audio/adhan.mp3");
+    azanAudio.preload = "auto";
+    azanAudio.addEventListener("ended", hideAzanOverlay);
+  }
+  return azanAudio;
+}
+function primeAzanAudio(){
+  /* ব্যবহারকারীর ট্যাপের সুযোগে অডিও-লক খুলে দিই — পরে অটো-প্লে সুগম হয় */
+  try {
+    const a = azanEl();
+    const p = a.play();
+    if (p && p.then) p.then(()=>{ a.pause(); a.currentTime = 0; }).catch(()=>{});
+  } catch(e){}
+}
+function playAzanFor(key, isTest){
+  const w = AZAN_WAKTS.find(w=>w.k===key) || AZAN_WAKTS[0];
+  azanTestMode = !!isTest;
+  const a = azanEl();
+  try { a.currentTime = 0; } catch(e){}
+  const pr = a.play();
+  if (pr && pr.catch) pr.catch(()=>{ showAzanOverlay(w, true); });
+  showAzanOverlay(w, false);
+}
+function stopAzan(){
+  if (azanAudio){ try{ azanAudio.pause(); azanAudio.currentTime = 0; }catch(e){} }
+  hideAzanOverlay();
+  azanTestMode = false;
+}
+function showAzanOverlay(w, blocked){
+  hideAzanOverlay();
+  if (!w) return;
+  const ov = document.createElement("div");
+  ov.className = "azan-live-overlay show";
+  ov.id = "azanLive";
+  const title = azanTestMode
+    ? "আযানের পরিক্ষা চলছে"
+    : `এখন <b>${w.label}</b>-এর আযান`;
+  ov.innerHTML = `
+    <div class="azan-live pattern">
+      <div class="azan-live-ring">${I.moon}</div>
+      <span class="azan-live-tag">${blocked ? "ট্যাপ করে আযান শুরু করুন" : "সুমধুর পুরুষ কণ্ঠে আযান…"}</span>
+      <h3>${title}</h3>
+      <p>আল্লাহু আকবার, আল্লাহু আকবার — নামাজের দিকে ধাবিত হোন</p>
+      ${blocked ? `<button class="azan-live-play" id="azanStartBtn">${I.play} আযান শুনুন</button>` : ""}
+      <button class="azan-live-stop" id="azanStop">${I.pause} বন্ধ করুন</button>
+    </div>`;
+  document.body.appendChild(ov);
+  document.body.classList.add("modal-open");
+  const sb = ov.querySelector("#azanStop");
+  if (sb) sb.addEventListener("click", stopAzan);
+  const st = ov.querySelector("#azanStartBtn");
+  if (st) st.addEventListener("click", ()=>{
+    const a = azanEl(); a.play().catch(()=>{});
+    const t = ov.querySelector(".azan-live-tag"); if (t) t.textContent = "সুমধুর পুরুষ কণ্ঠে আযান…";
+    st.remove();
+  });
+  ov.addEventListener("click", (e)=>{ if (e.target === ov) stopAzan(); });
+}
+function hideAzanOverlay(){
+  const ov = $("#azanLive");
+  if (!ov){ if (!$("#amolModal")) document.body.classList.remove("modal-open"); return; }
+  ov.remove();
+  if (!$("#amolModal")) document.body.classList.remove("modal-open");
+}
+function azanTick(){
+  if (!azanStore.master()) return;
+  const d = new Date();
+  const key = "azan:fired:" + todayKey;
+  let fired; try{ fired = new Set(JSON.parse(localStorage.getItem(key) || "[]")); }catch(e){ fired = new Set(); }
+  const now = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  for (const w of AZAN_WAKTS){
+    if (!azanStore.on(w.k) || fired.has(w.k)) continue;
+    if (azanStore.time(w.k) === now){
+      fired.add(w.k);
+      try{ localStorage.setItem(key, JSON.stringify([...fired])); }catch(e){}
+      playAzanFor(w.k, false);
+      break;
+    }
+  }
+}
+setInterval(azanTick, 1000);
+
 /* -------------------------- tab bar -------------------------- */
 const TABS = [
   { id:"home",    label:"হোম",      icon:I.home },
+  { id:"azan",    label:"আযান",     icon:I.azan },
   { id:"dua",     label:"দোয়া",     icon:I.dua },
   { id:"hadith",  label:"হাদিস",     icon:I.hadith },
   { id:"quran",   label:"কুরআন",     icon:I.quran },
@@ -509,6 +624,7 @@ function render(){
   const v = $("#view");
   v.classList.add("pattern");
   if (tab === "home")        v.innerHTML = pageHome();
+  else if (tab === "azan")   v.innerHTML = pageAzan();
   else if (tab === "dua")    v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (tab === "hadith") v.innerHTML = pageHadith();
   else if (tab === "marks")   v.innerHTML = pageMarks();
@@ -624,6 +740,68 @@ ${WAKTS.map(w=>{ const p = ST ? sunParts(ST[w.k]) : {w:"",t:"…"}; return `
 
     ${appDlCard()}
     ${footNote()}
+  </div>`;
+}
+
+/* ============ আযান ============ */
+function pageAzan(){
+  const rows = AZAN_WAKTS.map(w => {
+    const on = azanStore.on(w.k);
+    const t = azanStore.time(w.k);
+    const auto = (typeof ST !== "undefined" && ST && typeof ST[w.k] === "number") ? sunLabel(ST[w.k]) : null;
+    return `
+    <div class="azan-row ${on?"on":""}" data-azan="${w.k}">
+      <span class="azan-ic">${I[w.icon] || I.moon}</span>
+      <div class="azan-meta">
+        <h4>${w.label}</h4>
+        <p>${auto ? "আজকের সময়সূচি: "+auto+" (ঢাকা)" : "আপনার পছন্দের সময় ঠিক করুন"}</p>
+      </div>
+      <div class="azan-ctl">
+        <input type="time" class="azan-time" data-k="${w.k}" value="${t}" aria-label="${w.label}-এর আযানের সময়">
+        <label class="sw-wrap" title="আযান চালু/বন্ধ">
+          <input type="checkbox" class="azan-sw" data-k="${w.k}" ${on?"checked":""}>
+          <span class="sw"></span>
+        </label>
+      </div>
+    </div>`;
+  }).join("");
+
+  const onCount = AZAN_WAKTS.filter(w=>azanStore.on(w.k)).length;
+  const hint = !azanStore.master()
+    ? "আযান অ্যালার্ম বন্ধ আছে — উপরের সুইচ চেপে চালু করুন"
+    : (onCount ? bn(onCount)+"টি ওয়াক্তের আযান চালু আছে — ঠিক সময় হলেই সুমধুর কণ্ঠে আযান বাজবে"
+               : "মাস্টার চালু আছে — এবার যে ওয়াক্তের আযান চান তার সুইচ চালু করুন");
+  return `
+  <div class="page pg-azan">
+    <div class="sec-head" style="margin-top:14px">
+      <h2>আযান <small>নির্ধারিত সময়ে সুমধুর কণ্ঠে আযান</small></h2>
+      <span class="rule"></span>
+    </div>
+
+    <section class="azan-hero pattern">
+      <div class="azan-hero-ic">${I.azan}</div>
+      <div class="azan-hero-t">
+        <h3>আযান অ্যালার্ম</h3>
+        <p>পাঁচ ওয়াক্তের জন্য আলাদা আলাদা সময় সেট করুন</p>
+      </div>
+      <label class="sw-wrap azan-master-wrap" title="সব আযান চালু/বন্ধ">
+        <input type="checkbox" id="azanMaster" ${azanStore.master()?"checked":""}>
+        <span class="sw big"></span>
+      </label>
+    </section>
+
+    <p class="azan-hint">${hint}</p>
+
+    <section class="azan-list stagger">${rows}</section>
+
+    <div class="azan-actions">
+      <button class="azan-test" id="azanTest">${I.play} এখন শুনে দেখুন (পরীক্ষা)</button>
+    </div>
+
+    <section class="azan-note pattern">
+      <p><b>মনে রাখুন:</b> অ্যাপটি খোলা থাকা অবস্থায় ঠিক করা সময় হলে আযান বাজবে — অ্যাপ বন্ধ থাকলে বাজবে না। ফোন সাইলেন্টে থাকলে শোনা যাবে না।</p>
+      <p class="azan-src">আযান কণ্ঠ: আকিব আজিজ — Wikimedia Commons (CC BY-SA 4.0)</p>
+    </section>
   </div>`;
 }
 
@@ -1342,6 +1520,32 @@ function bind(){
     window.open("https://wa.me/8801713236980?text=" + encodeURIComponent(plain), "_blank", "noopener");
   });
 
+  /* azan — মাস্টার সুইচ, ওয়াক্তের সুইচ ও সময়, পরীক্ষা-প্লে */
+  const azm = $("#azanMaster");
+  if (azm) azm.addEventListener("change", ()=>{
+    azanStore.setMaster(azm.checked);
+    if (azm.checked) primeAzanAudio();
+    renderTabOnly("azan");
+  });
+  document.querySelectorAll(".azan-sw").forEach(sw =>
+    sw.addEventListener("change", ()=>{
+      azanStore.setOn(sw.dataset.k, sw.checked);
+      if (sw.checked) primeAzanAudio();
+      renderTabOnly("azan");
+    })
+  );
+  document.querySelectorAll(".azan-time").forEach(inp =>
+    inp.addEventListener("change", ()=>{
+      const k = inp.dataset.k;
+      if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(inp.value)){ inp.value = azanStore.time(k); return; }
+      azanStore.setTime(k, inp.value);
+      if (!azanStore.on(k)){ azanStore.setOn(k, true); if (azanStore.master()) primeAzanAudio(); }
+      renderTabOnly("azan");
+    })
+  );
+  const azt = $("#azanTest");
+  if (azt) azt.addEventListener("click", ()=>{ playAzanFor("fajr", true); });
+
   /* amol — ✔ চিহ্নে ট্যাপ = সম্পন্ন/অসম্পন্ন, কার্ডের অন্য জায়গায় ট্যাপ = বিস্তারিত মডাল */
   document.querySelectorAll(".amol-item").forEach(item =>
     item.addEventListener("click", (e)=>{
@@ -1355,7 +1559,8 @@ function bind(){
 /* re-render only current tab (keeps search focus stable) */
 function renderTabOnly(which, after){
   const v = $("#view");
-  if (which === "dua") v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
+  if (which === "azan") v.innerHTML = pageAzan();
+  else if (which === "dua") v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (which === "quran") v.innerHTML = readerSurah ? pageReaderShell() : pageQuran();
   bind();
   if (which === "quran" && readerSurah) loadSurahInto(readerSurah);
@@ -1423,6 +1628,7 @@ try { history.replaceState({ qh:"root" }, ""); } catch(e){}
 
 /* ফোনের/ব্রাউজারের ব্যাক বাটন — ওপেন ভিউ বন্ধ করে আগের অবস্থায় ফিরে যায় */
 window.addEventListener("popstate", () => {
+  if ($("#azanLive")){ stopAzan(); return; }
   if (amolDetailIdx !== null){ closeAmolDetail(); return; }
   if (detailDua !== null){ detailDua = null; renderTabOnly("dua"); return; }
   if (readerSurah){ readerSurah = null; stopAudio(); renderTabOnly("quran"); return; }
