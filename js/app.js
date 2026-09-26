@@ -1411,8 +1411,8 @@ try {
   const qp = new URLSearchParams(location.search);
   const qt = qp.get("tab"); if (qt && TABS.some(t=>t.id===qt)) tab = qt;
   const qdi = qp.get("dua"); if (qdi !== null && qdi !== "" && DUAS[+qdi]) { tab = "dua"; detailDua = +qdi; }
-  const qai = qp.get("amol");
-  if (qai !== null && qai !== ""){
+  const qai = qp.get("amol") || (location.hash.match(/amol=(\d+)/) || [])[1];
+  if (qai !== undefined && qai !== null && qai !== ""){
     const ai = +qai;
     const day = AMOL[new Date().getDay()];
     if (day && day.items[ai]){ tab = "home"; pendingAmolOpen = ai; }
@@ -1432,4 +1432,4 @@ render();
 startClock();
 syncSehriIftar();
 syncAjkerTarikh();
-if (pendingAmolOpen !== null){ const _ai = pendingAmolOpen; pendingAmolOpen = null; setTimeout(()=>openAmolDetail(_ai), 350); }
+if (pendingAmolOpen !== null){ const _ai = pendingAmolOpen; pendingAmolOpen = null; setTimeout(()=>{ try{ openAmolDetail(_ai); }catch(err){ const d=document.createElement("div"); d.style.cssText="position:fixed;left:8px;bottom:8px;z-index:2000;font-size:11px;color:#d98a7e;background:rgba(0,0,0,.6);padding:4px 8px;border-radius:8px"; d.textContent="amol-open error: "+err.message; document.body.appendChild(d); } }, 350); }
