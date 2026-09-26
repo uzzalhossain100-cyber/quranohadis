@@ -388,6 +388,7 @@ const amolStore = {
 
 /* ===== আমলের বিস্তারিত — ডিটেইল মডাল (কার্ডে ট্যাপে খোলে) ===== */
 let amolDetailIdx = null;
+let pendingAmolOpen = null; /* ?amol=N ডিপ-লিংকে অ্যাপ চালু হওয়ার পর মডাল খুলবে */
 
 function toggleAmolDone(i){
   const v = !amolStore.get(i);
@@ -1410,6 +1411,12 @@ try {
   const qp = new URLSearchParams(location.search);
   const qt = qp.get("tab"); if (qt && TABS.some(t=>t.id===qt)) tab = qt;
   const qdi = qp.get("dua"); if (qdi !== null && qdi !== "" && DUAS[+qdi]) { tab = "dua"; detailDua = +qdi; }
+  const qai = qp.get("amol");
+  if (qai !== null && qai !== ""){
+    const ai = +qai;
+    const day = AMOL[new Date().getDay()];
+    if (day && day.items[ai]){ tab = "home"; pendingAmolOpen = ai; }
+  }
 } catch(e){}
 
 try { history.replaceState({ qh:"root" }, ""); } catch(e){}
@@ -1425,3 +1432,4 @@ render();
 startClock();
 syncSehriIftar();
 syncAjkerTarikh();
+if (pendingAmolOpen !== null){ const _ai = pendingAmolOpen; pendingAmolOpen = null; setTimeout(()=>openAmolDetail(_ai), 350); }
