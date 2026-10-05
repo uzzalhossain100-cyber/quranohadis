@@ -1,7 +1,7 @@
 /* জেমিনি AI সার্ভার-প্রক্সি — কী সার্ভারে গোপন থাকে (Vercel env: GEMINI_API_KEY)
    ক্লায়েন্ট: POST /api/ask  { q, ctx }  →  { answer } */
 
-const MODELS = (process.env.GEMINI_MODEL || "gemini-2.0-flash,gemini-1.5-flash-latest,gemini-1.5-flash")
+const MODELS = (process.env.GEMINI_MODEL || "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-flash-lite-latest,gemini-3-flash-preview")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 function buildPrompt(q, ctx){
@@ -45,7 +45,7 @@ module.exports = async (req, res) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.25, maxOutputTokens: 640 }
+            generationConfig: { temperature: 0.25, maxOutputTokens: 1400 }
           })
         }
       );

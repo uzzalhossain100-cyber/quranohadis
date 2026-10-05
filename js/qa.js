@@ -799,7 +799,7 @@ async function qaGeminiViaServer(q, ctx){
   if (j && j.answer) return String(j.answer).trim();
   throw new Error("proxy-empty");
 }
-const QA_G_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+const QA_G_MODELS = ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"];
 async function qaGeminiDirect(q, ctx, key){
   const prompt = qaGeminiPrompt(q, ctx);
   const opt = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? { signal: AbortSignal.timeout(25000) } : {};
@@ -810,7 +810,7 @@ async function qaGeminiDirect(q, ctx, key){
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.25, maxOutputTokens: 640 }
+          generationConfig: { temperature: 0.25, maxOutputTokens: 1400 }
         }),
         ...opt
       });
