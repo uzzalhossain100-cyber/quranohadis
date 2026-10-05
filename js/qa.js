@@ -39,17 +39,56 @@ const QA_S_ALIASES = {};
   } catch(e){}
 })();
 
+const QA_S_KEYS = Object.keys(QA_S_ALIASES).sort((a,b) => b.length - a.length);
+
+const QA_BN_NUM = {
+  "প্রথম":1,"প্রথমটি":1,"১ম":1,"দ্বিতীয়":2,"তৃতীয়":3,"চতুর্থ":4,"পঞ্চম":5,"ষষ্ঠ":6,"সপ্তম":7,"অষ্টম":8,"নবম":9,"দশম":10,
+  "এক":1,"দুই":2,"তিন":3,"চার":4,"পাঁচ":5,"ছয়":6,"সাত":7,"আট":8,"নয়":9,"দশ":10,
+  "এগারো":11,"বারো":12,"তেরো":13,"চোদ্দ":14,"পনেরো":15,"ষোল":16,"ষোলো":16,"সতেরো":17,"আঠারো":18,"ঊনিশ":19,"উনিশ":19,"কুড়ি":20,"বিশ":20,
+  "একুশ":21,"বাইশ":22,"তেইশ":23,"চব্বিশ":24,"পঁচিশ":25,"ছাব্বিশ":26,"সাতাশ":27,"আটাশ":28,"ঊনত্রিশ":29,"ত্রিশ":30
+};
+
+/* প্রশ্ন থেকে আয়াত-চাহিদা বের করা — এটাই প্রথমে হয়, যাতে আয়াতের সংখ্যাটা সূরার নম্বর না হয়ে যায় */
+function qaExtractAyahReq(qn){
+  let wanted = /আয়াত/.test(qn);
+  let fromA = 0, toA = 0;
+  let clipped = qn;
+  const take = (m, a, b) => { fromA = a; toA = b; clipped = (clipped.slice(0, m.index) + " " + clipped.slice(m.index + m[0].length)).replace(/\s+/g, " ").trim(); };
+  let m = clipped.match(/(\d{1,3})\s*(?:থেকে|পর্যন্ত)\s*(\d{1,3})\s*আয়াত?/);
+  if (!m) m = clipped.match(/আয়াত\s*(?:নম্বর|নং)?\s*(\d{1,3})\s*(?:থেকে|পর্যন্ত)\s*(\d{1,3})/);
+  if (m){ wanted = true; take(m, +m[1], +m[2]); }
+  else {
+    m = clipped.match(/(\d{1,3})\s+(?:ও|এবং|,)?\s*(\d{1,3})\s*আয়াত?/);
+    if (m){ wanted = true; take(m, +m[1], +m[2]); }
+    else {
+      m = clipped.match(/(\d{1,3})\s*(?:নম্বর|নং|তম)?\s*আয়াত?/) || clipped.match(/আয়াত\s*(?:নম্বর|নং)?\s*(\d{1,3})/);
+      if (m){ wanted = true; take(m, +m[1], +m[1]); }
+      else {
+        /* শেষ আয়াত */
+        const msh = clipped.match(/শেষ\s*আয়াত/);
+        if (msh){ wanted = true; take(msh, -1, -1); }
+        else {
+          /* শব্দে লেখা সংখ্যা/ক্রমবাচক */
+          for (const w in QA_BN_NUM){
+            const rx = new RegExp("(^|\\s)" + w + "(?:টি|টা)?(?:\\s*(?:নম্বর|নং))?\\s*আয়াত|আয়াত\\s*" + w + "(\\s|$)");
+            const mm = clipped.match(rx);
+            if (mm){ wanted = true; take(mm, QA_BN_NUM[w], QA_BN_NUM[w]); break; }
+          }
+        }
+      }
+    }
+  }
+  return { wanted, fromA, toA, clipped };
+}
+
 function qaFindSurah(qn){
-  /* সংখ্যা-দেখে সূরা: "সূরা নম্বর ৩", "৩ নং সূরা" */
-  let m = qn.match(/সূরা[হ]?[^০-৯0-9]*?(?:নম্বর|নং)?[^০-৯0-9]*?(\d{1,3})\b/);
-  if (m){ const n = +m[1]; if (n >= 1 && n <= 114) return { n, clipped: qn.slice(0, m.index) + " " + qn.slice(m.index + m[0].length) }; }
-  m = qn.match(/\b(\d{1,3})\s*(?:নম্বর|নং)?\s*সূরা/);
-  if (m){ const n = +m[1]; if (n >= 1 && n <= 114) return { n, clipped: qn.slice(0, m.index) + " " + qn.slice(m.index + m[0].length) }; }
+  /* স্পষ্ট "সূরা নম্বর ৩" / "৩ নং সূরা" — আয়াত-অংশ আগেই বাদ পড়েছে বলে এখানে নিরাপদ */
+  let m = qn.match(/সূরা[হ]?\s*(?:নম্বর|নং)\s*(\d{1,3})/) || qn.match(/(\d{1,3})\s*(?:নম্বর|নং)?\s*সূরা[হ]?\b/);
+  if (m){ const n = +(m[1] || m[2]); if (n >= 1 && n <= 114) return { n }; }
   /* নাম-দেখে — দীর্ঘ আলিয়াস আগে */
-  const keys = Object.keys(QA_S_ALIASES).sort((a,b) => b.length - a.length);
   const compact = qn.replace(/\s+/g, "");
-  for (const k of keys){
-    if (compact.includes(k)) return { n: QA_S_ALIASES[k], clipped: qn };
+  for (const k of QA_S_KEYS){
+    if (compact.includes(k)) return { n: QA_S_ALIASES[k] };
   }
   return null;
 }
@@ -90,6 +129,7 @@ if (typeof window !== "undefined" && qaSupportsTTS()){
 function qaSegmentsSpeak(list){
   qaSpeech.list = list;
   qaSpeech.idx = 0;
+  qaSpeech.errs = 0;
   qaPlayerUpdate();
   if (list.length) qaPlayCurrent();
 }
@@ -109,8 +149,21 @@ function qaPlayCurrent(){
     if (qaSpeech.idx < qaSpeech.list.length) qaPlayCurrent();
     else { qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); }
   };
-  u.onerror = function(){
+  u.onerror = function(e){
+    const kind = e && e.error ? String(e.error) : "";
+    /* আমাদের নিজেদের cancel-জনিত বাধা বাদ দই */
+    if (kind === "canceled" || kind === "interrupted"){ return; }
+    qaSpeech.errs = (qaSpeech.errs || 0) + 1;
     qaSpeech.idx++;
+    if (qaSpeech.errs >= 2){
+      /* কণ্ঠই চালানো যাচ্ছে না — ডিভাইসের দিকে আঙুল তুলে বার্তা দিই */
+      qaSpeech.playing = false; qaSpeech.paused = false;
+      try { window.speechSynthesis.cancel(); } catch(err){}
+      const el = $("#qaNow");
+      if (el) el.innerHTML = "⚠️ এই ডিভাইসে কণ্ঠ চালানো যাচ্ছে না — ব্যবহারকারী নির্দেশনা: সেটিংস → ভাষা/টেক্সট-টু-স্পিচ → <b>বাংলা (এবং আরবি)</b> ভয়েস ডাউনলোড/সক্রিয় করে আবার চাপুন।";
+      const tot2 = $("#qaProg"); if (tot2) tot2.textContent = "";
+      return;
+    }
     if (qaSpeech.idx < qaSpeech.list.length) qaPlayCurrent();
     else { qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); }
   };
@@ -132,6 +185,9 @@ function qaPlayerUpdate(currentSeg){
 function qaRenderRes(res, autoSpeak){
   const box = $("#askResult"); if (!box) return;
   const ttsOK = qaSupportsTTS();
+  const wantsBn = !!(res.segments && res.segments.length && res.segments.some(s => s.lang === "bn"));
+  const vwarn = (ttsOK && wantsBn && !qaHasVoice("bn")) ?
+    `<p class="qa-vwarn">⚠️ আপনার ডিভাইসে বাংলা কণ্ঠ খুঁজে পাওয়া যায়নি। কিছু না শুনলে — সেটিংস → ভাষা/টেক্সট-টু-স্পিচ → বাংলা ভয়েস ডাউনলোড করে আবার চেষ্টা করুন। (কিছু ডিভাইসে স্বয়ংক্রিয়ভাবে কাজ করতে পারে।)</p>` : "";
   box.innerHTML = `
   <section class="qa-ans">
     ${res.title ? `<h3 class="qa-title">${res.title}</h3>` : ""}
@@ -146,7 +202,8 @@ function qaRenderRes(res, autoSpeak){
           <span class="qa-prog" id="qaProg"></span>
         </div>
         <p class="qa-now" id="qaNow"></p>
-      </div>` : `<p class="qa-note">এই ডিভাইসে কণ্ঠে শোনার ব্যবস্থা (টেক্সট-টু-স্পিচ) নেই — লেখাটি নিচে পড়ুন।</p>`) : ""}
+      </div>
+    ${vwarn}` : `<p class="qa-note">এই ডিভাইসে কণ্ঠে শোনার ব্যবস্থা (টেক্সট-টু-স্পিচ) নেই — লেখাটি নিচে পড়ুন।</p>`) : ""}
     <div class="qa-body">${res.html || ""}</div>
     ${res.moreBtn ? `<button class="qa-btn gold qa-more" id="qaMoreBtn">${I.play} পরের অংশ শোনাও</button>` : ""}
   </section>`;
@@ -180,7 +237,7 @@ function qaRenderRes(res, autoSpeak){
 }
 
 /* -------------------- কুরআন-ইনটেন্ট মোড -------------------- */
-function qaModeFrom(qn){
+function qaModeFrom(qn, fallback){
   const wantAr = /আরবি|তিলাওয়াত|তেলাওয়াত|tilawat|recite|arabic|قر/.test(qn);
   const wantUc = /উচ্চারণ|উচারণ|শুদ্ধ|pronunciation/.test(qn);
   const wantBn = /অনুবাদ|অর্থ|ভাবার্থ|বাংলা|translation/.test(qn);
@@ -188,20 +245,21 @@ function qaModeFrom(qn){
   if (wantAr) parts.push("ar");
   if (wantUc) parts.push("uc");
   if (wantBn) parts.push("bn");
-  if (!parts.length) parts = ["ar","bn"];
+  if (!parts.length) parts = fallback || ["ar","bn"];
   return parts;
 }
 
 const QA_READ_CHUNK = 15;
 let qaLast = null; /* { n, next, mode } — পরের অংশ চালিয়ে যাওয়ার অবস্থা */
 
-function qaAyahCard(n, a, i){
+function qaAyahCard(n, a, i, parts){
+  parts = parts || ["ar","uc","bn"];
   return `
   <article class="ayah">
-    <div class="badge-row"><span class="ayah-badge">৲ ${bn(i+1)}</span></div>
-    <p class="ar" lang="ar">${a.ar}</p>
-    <p class="uc"><i>উচ্চারণ</i>${a.uc}</p>
-    <p class="bn"><i>অনুবাদ</i>${a.bn}</p>
+    <div class="badge-row"><span class="ayah-badge">৲ ${bn(i)}</span></div>
+    ${parts.includes("ar") ? `<p class="ar" lang="ar">${a.ar}</p>` : ""}
+    ${parts.includes("uc") ? `<p class="uc"><i>উচ্চারণ</i>${a.uc}</p>` : ""}
+    ${parts.includes("bn") ? `<p class="bn"><i>অনুবাদ</i>${a.bn}</p>` : ""}
   </article>`;
 }
 
@@ -234,7 +292,7 @@ function qaBuildSurahRead(surahNo, fromAyah, toAyah, mode, opts){
       qaLast = null;
     }
     const cards = [];
-    for (let i = from; i <= planTo; i++) cards.push(qaAyahCard(surahNo, list[i-1], i));
+    for (let i = from; i <= planTo; i++) cards.push(qaAyahCard(surahNo, list[i-1], i, parts));
     return {
       title: "সূরা " + meta[2],
       note: "আয়াত " + bn(from) + (planTo > from ? "–" + bn(planTo) : "") + " (মোট " + bn(total) + " আয়াত)" + (hasMore ? " — বাকি " + bn(total - planTo) + " আয়াত নিচের বোতামে/বলে শুনতে পারেন" : ""),
@@ -319,29 +377,29 @@ async function qaAnswer(raw){
     };
   }
 
-  /* ৪. সূরা-ইনটেন্ট (সূরা বা আয়াত) */
-  const sHit = qaFindSurah(qn);
-  const hasQWord = /সূরা|আয়াত|tilawat|তিলাওয়াত|কুরান|কুরআন/.test(qn);
-  if (sHit || /আয়াত/.test(qn) && /\d/.test(qn)){
+  /* ৪. সূরা-ইনটেন্ট — আয়াতের অংশ আগে আলাদা, তারপর সূরা খোঁজা; সুনির্দিষ্ট আয়াত বললে শুধু সেটুকুই আনা হয় */
+  const ayahInfo = qaExtractAyahReq(qn);
+  const sHit = qaFindSurah(ayahInfo.clipped);
+  if (sHit || /সূরা|আয়াত|তিলাওয়াত|তেলাওয়াত|কুরান|কুরআন/.test(qn)){
     if (!sHit){
       return { title:"কোন সূরা?", note:"সূরার নাম বা নম্বরটি বলুন — যেমন: সূরা আল-বাকারার ২৫৫ নম্বর আয়াত শোনাও।", html:"" };
     }
-    const n = sHit.n;
-    const meta = SURAH_META.find(m => m[0] === n);
-    const nums = (qn.match(/\d{1,3}/g) || []).map(Number);
-    const range = qn.match(/(\d{1,3})\s*থেকে\s*(\d{1,3})/);
-    let fromA = 0, toA = 0;
-    if (/আয়াত/.test(qn) || range){
-      if (range){ fromA = +range[1]; toA = +range[2]; }
-      else if (nums.length){ fromA = nums[nums.length - 1]; toA = fromA; }
-      if (!fromA || fromA < 1 || fromA > meta[4])
-        return { title:"আয়াতের নম্বর ঠিক নয়", note:"সূরা " + meta[2] + "-এ মোট " + bn(meta[4]) + " আয়াত আছে — " + bn(Math.min(Math.max(1, fromA||1), meta[4])) + "-এর মধ্যে একটি নম্বর বলুন।", html:"" };
-      const mode = qaModeFrom(qn);
-      return qaBuildSurahRead(n, fromA, toA, mode);
+    const nS = sHit.n;
+    const metaS = SURAH_META.find(m => m[0] === nS);
+    const mode = qaModeFrom(qn);
+    if (ayahInfo.wanted){
+      let f = ayahInfo.fromA, t2 = ayahInfo.toA;
+      if (f === -1){ f = metaS[4]; t2 = metaS[4]; } /* শেষ আয়াত */
+      if (!f){
+        return { title:"কত নম্বর আয়াত?", note:"আয়াতের নম্বরটিও বলুন — যেমন: সূরা " + metaS[2] + "-এর ১০ নম্বর আয়াত শোনাও।", html:"" };
+      }
+      if (f < 1 || f > metaS[4] || (t2 && (t2 < 1 || t2 > metaS[4])))
+        return { title:"আয়াতের নম্বর ঠিক নয়", note:"সূরা " + metaS[2] + "-এ মোট " + bn(metaS[4]) + " আয়াত আছে — তার মধ্যে একটি নম্বর বলুন।", html:"" };
+      if (t2 && t2 < f){ const x = f; f = t2; t2 = x; }
+      return qaBuildSurahRead(nS, f, t2 || f, mode);
     }
     /* পুরো সূরা */
-    const mode = qaModeFrom(qn);
-    return qaBuildSurahRead(n, 1, 0, mode);
+    return qaBuildSurahRead(nS, 1, 0, mode);
   }
 
   /* ৫. আজকের বাণী */
@@ -372,19 +430,22 @@ async function qaAnswer(raw){
     if (hits.length){
       const d = hits[0].it;
       const others = hits.slice(1,3).map(h => `<li><b>${h.it.title}</b> — ${h.it.src || ""}</li>`).join("");
-      const ucAsked = /উচ্চারণ/.test(qn);
+      const modeWords = /আরবি|তিলাওয়াত|উচ্চারণ|উচারণ|অনুবাদ|অর্থ|ভাবার্থ/.test(qn);
+      const parts = qaModeFrom(qn, ["ar","uc","bn"]);
       return {
         title:"মিলে যাওয়া দোয়া — " + d.title,
-        html: qaDuaCard(d) + (others ? `<div class="qa-card"><p class="qa-dim">আরও মিলেছে:</p><ul class="qa-mini">${others}</ul></div>` : ""),
+        html: qaDuaCard(d, modeWords ? parts : ["ar","uc","bn"]) + (others ? `<div class="qa-card"><p class="qa-dim">আরও মিলেছে:</p><ul class="qa-mini">${others}</ul></div>` : ""),
         segments:[
           { t:"দোয়া — " + d.title + "।", lang:"bn" },
-          ...(ucAsked ? [{ t:"উচ্চারণ — " + d.uc, lang:"bn" }] : []),
-          { t:"বাংলা অর্থ — " + d.bn, lang:"bn" },
+          ...(modeWords && parts.includes("ar") && qaHasVoice("ar") ? [{ t:d.ar, lang:"ar" }] :
+             (modeWords && parts.includes("ar") ? [{ t:"উচ্চারণ — " + d.uc, lang:"bn" }] : [])),
+          ...(modeWords && parts.includes("uc") ? [{ t:"উচ্চারণ — " + d.uc, lang:"bn" }] : []),
+          ...((modeWords ? parts.includes("bn") : true) ? [{ t:"বাংলা অর্থ — " + d.bn, lang:"bn" }] : []),
           ...(d.src ? [{ t:"উৎস: " + d.src, lang:"bn" }] : [])
         ]
       };
     }
-    return { title:"দোয়া পাওয়া যায়নি", note:"অন্য কথায় লিখে দেখুন — যেমন: মা-বাবার জন্য দোয়া, অসুস্থতার দোয়া, সফরের দোয়া।", html:"" };
+    return qaGeminiOrNote(qn, "দোয়া পাওয়া যায়নি", "অন্য কথায় লিখে দেখুন — যেমন: মা-বাবার জন্য দোয়া, অসুস্থতার দোয়া, সফরের দোয়া।");
   }
 
   /* ৮. হাদিস-সার্চ */
@@ -393,22 +454,28 @@ async function qaAnswer(raw){
     if (hits.length){
       const h = hits[0].it;
       const others = hits.slice(1,3).map(x => `<li><b>${x.it.topic}</b></li>`).join("");
+      const modeWords = /আরবি|তিলাওয়াত|উচ্চারণ|উচারণ|অনুবাদ|অর্থ|ভাবার্থ/.test(qn);
+      const parts = qaModeFrom(qn, ["ar","uc","bn"]);
       return {
         title:"মিলে যাওয়া হাদিস — " + h.topic,
-        html: qaHadithCard(h) + (others ? `<div class="qa-card"><p class="qa-dim">আরও মিলেছে:</p><ul class="qa-mini">${others}</ul></div>` : ""),
+        html: qaHadithCard(h, modeWords ? parts : ["ar","uc","bn"]) + (others ? `<div class="qa-card"><p class="qa-dim">আরও মিলেছে:</p><ul class="qa-mini">${others}</ul></div>` : ""),
         segments:[
           { t:"হাদিসের বিষয় — " + h.topic + "।", lang:"bn" },
+          ...(modeWords && parts.includes("ar") && qaHasVoice("ar") ? [{ t:h.ar, lang:"ar" }] :
+             (modeWords && parts.includes("ar") && h.uc ? [{ t:"উচ্চারণ — " + h.uc, lang:"bn" }] : [])),
+          ...(modeWords && parts.includes("uc") && h.uc ? [{ t:"উচ্চারণ — " + h.uc, lang:"bn" }] : []),
           { t:"অর্থ — " + h.bn, lang:"bn" },
           ...(h.src ? [{ t:"উৎস: " + h.src, lang:"bn" }] : []),
-          ...(h.disc && h.disc[0] ? [{ t:"ব্যাখ্যা — " + h.disc[0], lang:"bn" }] : [])
+          ...(h.disc && h.disc[0] && (!modeWords || parts.includes("bn")) ? [{ t:"ব্যাখ্যা — " + h.disc[0], lang:"bn" }] : [])
         ]
       };
     }
-    return { title:"হাদিস পাওয়া যায়নি", note:"অন্য কথায় লিখে দেখুন — যেমন: নিয়ত নিয়ে হাদিস, দানের ফজিলত হাদিস।", html:"" };
+    return qaGeminiOrNote(qn, "হাদিস পাওয়া যায়নি", "অন্য কথায় লিখে দেখুন — যেমন: নিয়ত নিয়ে হাদিস, দানের ফজিলত হাদিস।");
   }
 
-  /* ৯. সার্বিক সার্চ (দোয়া + হাদিস + বাণী + আমল) */
+  /* ৯. জেমিনি AI + সার্বিক সার্চ (দোয়া + হাদিস + বাণী + আমল) */
   const hits = qaSearchPool(qn, "any");
+  const gAns = await qaGemini(qn, qaCtxSummary(hits));
   if (hits.length){
     const h0 = hits[0];
     const listHtml = hits.slice(0,3).map(h => {
@@ -417,6 +484,14 @@ async function qaAnswer(raw){
       if (h.type === "bani") return `<li><b>বাণী:</b> “${h.it.q}” (${h.it.r})</li>`;
       return `<li><b>আমল:</b> ${h.it.t}</li>`;
     }).join("");
+    if (gAns){
+      return {
+        title:"জেমিনি AI-এর উত্তর",
+        html: qaGeminiCard(gAns)
+            + `<div class="qa-card"><p class="qa-dim">মিলিয়ে দেখুন — অ্যাপের ভেতর থেকে পাওয়া সংশ্লিষ্ট অংশ:</p><ul class="qa-mini">${listHtml}</ul></div>`,
+        segments: qaTextToBnSegs(gAns)
+      };
+    }
     let seg = "আপনার প্রশ্নের সাথে সবচেয়ে বেশি মিলেছে — ";
     if (h0.type === "dua") seg += "দোয়া: " + h0.it.title + " — " + h0.it.bn;
     else if (h0.type === "hadith") seg += "হাদিস: " + h0.it.topic + " — " + h0.it.bn;
@@ -428,6 +503,14 @@ async function qaAnswer(raw){
            : `<div class="qa-card"><p class="qa-quote">“${h0.it.q || h0.it.t}”</p><p class="qa-dim">${h0.it.r || h0.it.d || ""}</p></div>`)
           + `<div class="qa-card"><p class="qa-dim">সম্পর্কিত আরও ফলাফল:</p><ul class="qa-mini">${listHtml}</ul></div>`,
       segments:[{ t:seg, lang:"bn" }]
+    };
+  }
+
+  if (gAns){
+    return {
+      title:"জেমিনি AI-এর উত্তর",
+      html: qaGeminiCard(gAns),
+      segments: qaTextToBnSegs(gAns)
     };
   }
 
@@ -471,26 +554,150 @@ function qaSearchPool(qn, pool){
   return out;
 }
 
-function qaDuaCard(d){
+function qaDuaCard(d, parts){
+  parts = parts || ["ar","uc","bn"];
   return `
   <div class="qa-card">
     <h4 class="qa-card-h">${d.title}</h4>
-    <p class="ar qa-ar" lang="ar">${d.ar}</p>
-    <p class="uc"><i>উচ্চারণ</i>${d.uc}</p>
-    <p class="bn"><i>অর্থ</i>${d.bn}</p>
+    ${parts.includes("ar") ? `<p class="ar qa-ar" lang="ar">${d.ar}</p>` : ""}
+    ${parts.includes("uc") ? `<p class="uc"><i>উচ্চারণ</i>${d.uc}</p>` : ""}
+    ${parts.includes("bn") ? `<p class="bn"><i>অর্থ</i>${d.bn}</p>` : ""}
     ${d.src ? `<p class="qa-dim">${d.src}</p>` : ""}
   </div>`;
 }
-function qaHadithCard(h){
+function qaHadithCard(h, parts){
+  parts = parts || ["ar","uc","bn"];
   return `
   <div class="qa-card">
     <h4 class="qa-card-h">${h.topic}</h4>
-    <p class="ar qa-ar" lang="ar">${h.ar}</p>
-    <p class="uc"><i>উচ্চারণ</i>${h.uc || ""}</p>
-    <p class="bn"><i>অর্থ</i>${h.bn}</p>
+    ${parts.includes("ar") ? `<p class="ar qa-ar" lang="ar">${h.ar}</p>` : ""}
+    ${parts.includes("uc") && h.uc ? `<p class="uc"><i>উচ্চারণ</i>${h.uc}</p>` : ""}
+    ${parts.includes("bn") ? `<p class="bn"><i>অর্থ</i>${h.bn}</p>` : ""}
     <p class="qa-dim">${h.narrator || ""} — ${h.src || ""}</p>
-    ${h.disc && h.disc.length ? `<p class="qa-disc">${h.disc[0]}</p>` : ""}
+    ${parts.includes("bn") && h.disc && h.disc.length ? `<p class="qa-disc">${h.disc[0]}</p>` : ""}
   </div>`;
+}
+
+/* -------------------- জেমিনি AI সংযোগ --------------------
+   উৎস-ক্রম: ১) ডিভাইসে সংরক্ষিত ব্যক্তিগত কী → সরাসরি Gemini API
+             ২) js/config.js-এ এমবেড করা কী → সরাসরি Gemini API
+             ৩) সাইটের সার্ভার-প্রক্সি (/api/ask) — কী Vercel-এ গোপন থাকে
+   কিছুই না পেলে চুপচাপ খালি স্ট্রিং — তখন লোকাল ইঞ্জিনই উত্তর দেয়। */
+function qaGeminiKey(){
+  try {
+    const ls = localStorage.getItem("qh.geminiKey");
+    if (ls && ls.length > 15) return ls;
+  } catch(e){}
+  try {
+    if (typeof window !== "undefined" && window.QA_GEMINI_KEY && window.QA_GEMINI_KEY.length > 15) return window.QA_GEMINI_KEY;
+  } catch(e){}
+  return "";
+}
+function qaGeminiProxyUrl(){
+  try {
+    if (/^file:$/.test(location.protocol)) return "https://quranohadis.vercel.app/api/ask"; /* APK WebView */
+  } catch(e){}
+  return "/api/ask";
+}
+function qaGeminiPrompt(q, ctx){
+  return "তুমি \"কুরআন ও হাদিস\" নামের একটি বাংলা ইসলামিক অ্যাপের AI সহকারী।\n\n" +
+"কড়া নিয়মাবলি:\n" +
+"১) উত্তর সবসময় সহজ, খাঁটি বাংলায়; ৩–৮ লাইনের মধ্যে সংক্ষিপ্ত রাখবে।\n" +
+"২) কুরআনের তথ্য দিলে সূরা ও আয়াত নম্বর উল্লেখ করবে; হাদিসের ক্ষেত্রে গ্রন্থের নাম বলবে।\n" +
+"৩) নিচের \"অ্যাপের ডেটা\" অংশে তথ্য থাকলে সেটাই মূল উৎস — তার সাথে সাংঘর্ষিক কিছু বলবে না।\n" +
+"৪) নিশ্চিত না হলে স্পষ্ট করে জানিয়ে দেবে; ক্ষমা চাওয়া, অভিবাদন, ভূমিকা — এসব একদম বাদ।\n" +
+"৫) ফিকহি দ্বিমত থাকলে এক-দুই লাইনে উল্লেখ করবে, তর্কে যাবে না।\n\n" +
+"অ্যাপের ডেটা থেকে পাওয়া সংশ্লিষ্ট তথ্য:\n" + (ctx || "(সুনির্দিষ্ট মিল পাওয়া যায়নি)") + "\n\n" +
+"ব্যবহারকারীর প্রশ্ন: " + q + "\n\nএবার শুধু উত্তরটি লেখো:";
+}
+async function qaGeminiViaServer(q, ctx){
+  const opt = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? { signal: AbortSignal.timeout(25000) } : {};
+  const r = await fetch(qaGeminiProxyUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-qa-client": "quranohadis" },
+    body: JSON.stringify({ q: q.slice(0, 600), ctx: String(ctx || "").slice(0, 3500) }),
+    ...opt
+  });
+  if (!r.ok){
+    if (r.status === 501){ try { localStorage.setItem("qh.aiOk", "0"); } catch(e){} }
+    throw new Error("proxy-" + r.status);
+  }
+  const j = await r.json();
+  if (j && j.answer){ try { localStorage.setItem("qh.aiOk", "1"); } catch(e){} }
+  if (j && j.answer) return String(j.answer).trim();
+  throw new Error("proxy-empty");
+}
+const QA_G_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+async function qaGeminiDirect(q, ctx, key){
+  const prompt = qaGeminiPrompt(q, ctx);
+  const opt = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? { signal: AbortSignal.timeout(25000) } : {};
+  for (const m of QA_G_MODELS){
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent?key=" + encodeURIComponent(key), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.25, maxOutputTokens: 640 }
+        }),
+        ...opt
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const cand = (j && j.candidates && j.candidates[0]) || {};
+      const parts = (cand.content && cand.content.parts) || [];
+      const txt = parts.map(p => p.text || "").join("").trim();
+      if (txt) return txt;
+    } catch(e){}
+  }
+  throw new Error("gemini-direct-fail");
+}
+async function qaGemini(q, ctx){
+  try {
+    const key = qaGeminiKey();
+    if (key){
+      try { return await qaGeminiDirect(q, ctx, key); } catch(e){}
+    }
+    return await qaGeminiViaServer(q, ctx);
+  } catch(e){ return ""; }
+}
+function qaCtxSummary(hits){
+  if (!hits || !hits.length) return "";
+  return hits.slice(0, 3).map(h => {
+    if (h.type === "dua") return "দোয়া — " + h.it.title + ": " + String(h.it.bn || "").slice(0, 320);
+    if (h.type === "hadith") return "হাদিস — " + h.it.topic + ": " + String(h.it.bn || "").slice(0, 320) + (h.it.src ? " (" + h.it.src + ")" : "");
+    if (h.type === "bani") return "বাণী — “" + h.it.q + "” (" + h.it.r + ")";
+    return "আমল — " + h.it.t + ": " + String(h.it.d || "").slice(0, 220);
+  }).join("\n");
+}
+function qaTextToBnSegs(txt){
+  const clean = String(txt || "").replace(/\s*\n+\s*/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (!clean) return [];
+  const parts = clean.match(/[^।!?\n]+[।!?]?/g) || [clean];
+  const segs = [];
+  let buf = "";
+  parts.forEach(p => {
+    if ((buf + " " + p).trim().length > 240){ if (buf) segs.push({ t: buf.trim(), lang: "bn" }); buf = p; }
+    else buf = (buf ? buf + " " : "") + p;
+  });
+  if (buf.trim()) segs.push({ t: buf.trim(), lang: "bn" });
+  return segs;
+}
+function qaEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function qaGeminiCard(txt){
+  const paras = String(txt).split(/\n{1,}/).map(p => p.trim()).filter(Boolean);
+  const inner = paras.length ? paras.map(p => `<p>${qaEsc(p)}</p>`).join("") : `<p>${qaEsc(txt)}</p>`;
+  return `
+  <div class="qa-card qa-ai">
+    <h4 class="qa-card-h">✦ জেমিনি AI বলছে</h4>
+    <div class="qa-ai-txt">${inner}</div>
+    <p class="qa-dim">AI-এর উত্তর ভুল হতে পারে — কুরআন-হাদিসের ব্যাপারে অ্যাপের ভেতরের মূল পাঠের সাথে মিলিয়ে নিন।</p>
+  </div>`;
+}
+async function qaGeminiOrNote(qn, title, note){
+  const gAns = await qaGemini(qn, "");
+  if (gAns) return { title: "জেমিনি AI-এর উত্তর", html: qaGeminiCard(gAns), segments: qaTextToBnSegs(gAns) };
+  return { title, note, html: "" };
 }
 
 /* -------------------- পেজ UI -------------------- */
@@ -537,6 +744,20 @@ function pageAsk(){
     </section>
 
     <div class="ask-chips">${chips}</div>
+
+    <section class="qa-settings pattern">
+      <button class="qa-set-toggle" id="qaSetToggle" aria-expanded="false">⚙︎ AI সেটিংস (জেমিনি) <span class="qa-ai-dot" id="qaAiDot"></span></button>
+      <div class="qa-set-body" id="qaSetBody" hidden>
+        <p class="qa-dim">সাইটের সার্ভারে AI সংযুক্ত থাকলে কিছু করতে হবে না — সবার জন্য চলবে। নিজের জেমিনি API-কী ব্যবহার করতে চাইলে নিচে বসিয়ে “সংরক্ষণ” চাপুন — কী শুধু এই ডিভাইসে থাকবে।</p>
+        <div class="qa-set-row">
+          <input id="qaKeyInput" class="ask-input" style="min-height:0;padding:9px 11px;font-size:13.5px" type="password" placeholder="Gemini API key (AIza...)" autocomplete="off">
+          <button class="qa-btn gold" id="qaKeySave">সংরক্ষণ</button>
+          <button class="qa-btn" id="qaKeyClear">মুছুন</button>
+        </div>
+        <p class="qa-ai-status" id="qaAiStatus">…</p>
+        <p class="qa-dim" style="margin-top:4px">ফ্রি কী বানাতে: <span class="qa-mono">aistudio.google.com</span> → “Get API key” → “Create API key”।</p>
+      </div>
+    </section>
 
     <div id="askWave" class="ask-wave" hidden></div>
     <div id="askResult"></div>
@@ -649,7 +870,46 @@ function bindAsk(){
       qaSubmit(t);
     })
   );
+
+  /* AI সেটিংস */
+  const tg = $("#qaSetToggle");
+  if (tg) tg.addEventListener("click", ()=>{
+    const b = $("#qaSetBody");
+    if (b){ b.hidden = !b.hidden; tg.setAttribute("aria-expanded", String(!b.hidden)); }
+  });
+  qaAiStatusRefresh();
+  const ks = $("#qaKeySave");
+  if (ks) ks.addEventListener("click", ()=>{
+    const k = ($("#qaKeyInput") && $("#qaKeyInput").value || "").trim();
+    if (k.length < 15){
+      qaAiStatusSet("কীটা ছোট মনে হচ্ছে — পুরো কী বসান।", false);
+      return;
+    }
+    try { localStorage.setItem("qh.geminiKey", k); } catch(e){}
+    qaAiStatusSet("নিজের কী সংরক্ষণ হয়েছে ✓ — এবার উত্তর জেমিনি AI থেকে আসবে।", true);
+  });
+  const kc = $("#qaKeyClear");
+  if (kc) kc.addEventListener("click", ()=>{
+    try { localStorage.removeItem("qh.geminiKey"); } catch(e){}
+    const kI = $("#qaKeyInput"); if (kI) kI.value = "";
+    qaAiStatusRefresh();
+  });
+
   qaInitVoice();
+}
+
+function qaAiStatusSet(msg, ok){
+  const st = $("#qaAiStatus"); if (st) st.innerHTML = msg;
+  const dot = $("#qaAiDot");
+  if (dot) dot.className = "qa-ai-dot " + (ok ? "on" : "off");
+}
+function qaAiStatusRefresh(){
+  if (qaGeminiKey()){ qaAiStatusSet("✓ এই ডিভাইসে নিজের জেমিনি-কী সংযুক্ত আছে।", true); return; }
+  try {
+    const flag = localStorage.getItem("qh.aiOk");
+    if (flag === "1"){ qaAiStatusSet("✓ সার্ভারের মাধ্যমে জেমিনি AI সংযুক্ত আছে।", true); return; }
+  } catch(e){}
+  qaAiStatusSet("সার্ভার-কী পরীক্ষা করা হয়নি — সাধারণ প্রশ্ন করলেই AI যুক্ত কিনা বোঝা যাবে; নইলে লোকাল ইঞ্জিনই উত্তর দেবে।", false);
 }
 
 /* -------------------- বুট-নিশ্চিতকরণ --------------------

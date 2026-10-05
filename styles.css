@@ -1558,3 +1558,17 @@ body.modal-open{overflow:hidden}
   .tab span{font-size:9px !important; letter-spacing:0}
   .tab{gap:3px;padding:7px 2px 6px}
 }
+
+/* ============ অনুসন্ধান — AI সেটিংস ও জেমিনি কার্ড ============ */
+.qa-settings{margin-top:14px;padding:10px 12px;border-radius:13px}
+.qa-set-toggle{font:inherit;font-size:13px;font-weight:700;color:var(--gold);background:none;border:none;cursor:pointer;padding:4px 2px;display:flex;align-items:center;gap:7px}
+.qa-ai-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);display:inline-block}
+.qa-ai-dot.on{background:#3fa46a}
+.qa-ai-dot.off{background:#b3402a}
+.qa-set-body{margin-top:8px}
+.qa-set-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.qa-ai-status{font-size:12.5px;color:var(--ink-soft);margin:10px 0 0}
+.qa-mono{font-family:monospace;font-size:12px;color:var(--gold)}
+.qa-ai{border:1px solid rgba(214,178,94,.5);background:linear-gradient(160deg,rgba(214,178,94,.07),rgba(214,178,94,.015))}
+.qa-ai-txt p{margin:0 0 8px;font-size:14.5px;line-height:1.9}
+.qa-vwarn{font-size:12px;color:#c2702a;line-height:1.6;margin:0 0 10px}
