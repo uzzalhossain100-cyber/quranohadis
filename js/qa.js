@@ -651,3 +651,11 @@ function bindAsk(){
   );
   qaInitVoice();
 }
+
+/* -------------------- বুট-নিশ্চিতকরণ --------------------
+   app.js নিজের শেষেই প্রথম render() চালায় — সেসময় qa.js এখনো লোড হয়নি
+   (index.html-এ qa.js আসে app.js-এর পরে)। তাই লোড শেষে অবস্থান অনুযায়ী
+   আবার একবার পেজ আঁকাই — আইডেম্পোটেন্ট, নিরাপদ। */
+try {
+  if (typeof render === "function"){ render(); }
+} catch(e){ if (typeof console !== "undefined") console.warn("qa boot render:", e); }
