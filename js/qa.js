@@ -138,14 +138,26 @@ function qaChunkForGT(txt, lim){
   if (cur) out.push(cur);
   return out;
 }
+function qaIsWebView(){
+  try { return /;\s*wv\)|Version\/4\.0 Chrome\//.test(navigator.userAgent) || typeof window.AndroidQASR !== "undefined"; }
+  catch(e){ return false; }
+}
+function qaTtsPref(){
+  try { return localStorage.getItem("qh.ttsEngine") || "auto"; } catch(e){ return "auto"; } /* auto | online | device */
+}
 function qaChooseEngine(){
-  /* স্থানীয় বাংলা কণ্ঠ পেলে ডিভাইস-স্পিচ; নাহলে অনলাইন ইঞ্জিন */
+  const pref = qaTtsPref();
+  if (pref === "online"){ if (qaSupportsGTTS()) return "gt"; return qaSupportsTTS() ? "ws" : "none"; }
+  if (pref === "device"){ if (qaSupportsTTS()) return "ws"; return qaSupportsGTTS() ? "gt" : "none"; }
+  /* সয়ংক্রিয়: ওয়েবভিউ/বাংলা-ভয়েসবিহীন ডিভাইসে অনলাইন ইঞ্জিন আগে */
+  if (qaIsWebView() && qaSupportsGTTS()) return "gt";
   if (qaSupportsTTS() && qaHasVoice("bn")) return "ws";
   if (qaSupportsGTTS()) return "gt";
   if (qaSupportsTTS()) return "ws";
   return "none";
 }
 function qaStopSpeech(){
+  if (typeof qaDisarmWatchdog === "function") qaDisarmWatchdog();
   qaSpeech.list = []; qaSpeech.idx = 0; qaSpeech.playing = false; qaSpeech.paused = false;
   if (qaSupportsTTS()){ try { window.speechSynthesis.cancel(); } catch(e){} }
   if (qaAudio.el){ try { qaAudio.el.onended = null; qaAudio.el.onerror = null; qaAudio.el.pause(); qaAudio.el.src = ""; } catch(e){} }
@@ -179,6 +191,25 @@ function qaPlayCurrent(){
 }
 
 /* --- ইঞ্জিন ১: ডিভাইসের speechSynthesis (অফলাইন) --- */
+let qaWatchdog = null;
+function qaArmWatchdog(seg){
+  /* কিছু পরিবেশে (বিশেষত অ্যান্ড্রয়েড ওয়েবভিউ) speechSynthesis কোনো শব্দই না
+     করে এবং কোনো ইভেন্টও ছোড়ে না — সময় দেখে বুঝে নিয়ে অনলাইনে সরে যাই */
+  if (qaWatchdog) clearTimeout(qaWatchdog);
+  const waitMs = Math.min(16000, 2500 + String(seg.t).length * 95);
+  qaWatchdog = setTimeout(()=>{
+    qaWatchdog = null;
+    if (!qaSpeech.playing || qaSpeech.engine !== "ws") return;
+    try {
+      if (qaSupportsTTS() && window.speechSynthesis.speaking){ /* শব্দ হচ্ছে — অপেক্ষাই করি */ return; }
+    } catch(e){}
+    /* নীরব ব্যর্থতা — GT-তে চলে যাই */
+    if (qaSupportsGTTS()) qaSwitchToGTFromHere();
+    else { qaSpeech.playing = false; qaPlayerUpdate(); }
+  }, waitMs);
+}
+function qaDisarmWatchdog(){ if (qaWatchdog){ clearTimeout(qaWatchdog); qaWatchdog = null; } }
+
 function qaPlayCurrentWS(){
   if (!qaSupportsTTS()){ qaSpeech.playing = false; qaPlayerUpdate(); return; }
   const seg = qaSpeech.list[qaSpeech.idx];
@@ -189,11 +220,14 @@ function qaPlayCurrentWS(){
   window.speechSynthesis.cancel();
   qaSpeech.playing = true; qaSpeech.paused = false;
   qaPlayerUpdate(seg);
+  qaArmWatchdog(seg);
   u.onend = function(){
+    qaDisarmWatchdog();
     qaSpeech.idx++;
     qaPlayCurrent();
   };
   u.onerror = function(e){
+    qaDisarmWatchdog();
     const kind = e && e.error ? String(e.error) : "";
     if (kind === "canceled" || kind === "interrupted"){ return; }
     qaSpeech.errs++;
@@ -206,6 +240,7 @@ function qaPlayCurrentWS(){
     qaPlayCurrent();
   };
   try { window.speechSynthesis.speak(u); } catch(e){
+    qaDisarmWatchdog();
     if (qaSupportsGTTS()) qaSwitchToGTFromHere();
     else { qaSpeech.playing = false; qaPlayerUpdate(); }
   }
@@ -233,15 +268,23 @@ function qaPlayCurrentGT(){
   qaSpeech.playing = true; qaSpeech.paused = false;
   qaPlayerUpdate(seg);
   el.onended = function(){
+    qaAudio.gtfails = 0;
     qaSpeech.idx++;
     qaPlayCurrent();
   };
   el.onerror = function(){
     qaAudio.retried++;
     if (qaAudio.retried <= 1){ setTimeout(()=>{ try{ el.src = qaTtsUrl(seg.t, seg.lang); const p2 = el.play(); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }, 900); return; }
-    qaSpeech.playing = false;
-    const now2 = $("#qaNow");
-    if (now2) now2.innerHTML = "⚠️ অনলাইন কণ্ঠ-ইঞ্জিনে পৌঁছানো যাচ্ছে না — ইন্টারনেট সংযোগ দেখে আবার ▶ চাপুন।";
+    /* এই খণ্ডটি বাদ দিয়ে পরেরটা চেষ্টা করি; টানা ৩টি ব্যর্থ হলে থেমে এলার্ট */
+    qaAudio.gtfails = (qaAudio.gtfails || 0) + 1;
+    if (qaAudio.gtfails >= 3){
+      qaSpeech.playing = false;
+      const now2 = $("#qaNow");
+      if (now2) now2.innerHTML = "⚠️ অনলাইন কণ্ঠ-ইঞ্জিনে পৌঁছানো যাচ্ছে না — ইন্টারনেট সংযোগ দেখে আবার ▶ চাপুন।";
+      return;
+    }
+    qaSpeech.idx++;
+    qaPlayCurrent();
   };
   const pr = el.play();
   if (pr && pr.catch) pr.catch(err => {
@@ -664,6 +707,8 @@ async function qaAnswer(raw){
         segments: qaTextToBnSegs(gAns)
       };
     }
+    const aiWarn = (typeof qaAIState !== "undefined" && qaAIState.lastWhy) ?
+      `<p class="qa-vwarn">ℹ️ AI সহায়ক এবার পৌঁছানো যায়নি (${qaAIState.lastWhy}) — তাই অ্যাপের ভাণ্ডার থেকে উত্তর দেখানো হলো।</p>` : "";
     let seg = "আপনার প্রশ্নের সাথে সবচেয়ে বেশি মিলেছে — ";
     if (h0.type === "dua") seg += "দোয়া: " + h0.it.title + " — " + h0.it.bn;
     else if (h0.type === "hadith") seg += "হাদিস: " + h0.it.topic + " — " + h0.it.bn;
@@ -671,7 +716,7 @@ async function qaAnswer(raw){
     else seg += h0.it.t + " — " + (h0.it.d || "");
     return {
       title:"আপনার প্রশ্নের উত্তর",
-      html: (h0.type === "dua" ? qaDuaCard(h0.it) : h0.type === "hadith" ? qaHadithCard(h0.it)
+      html: aiWarn + (h0.type === "dua" ? qaDuaCard(h0.it) : h0.type === "hadith" ? qaHadithCard(h0.it)
            : `<div class="qa-card"><p class="qa-quote">“${h0.it.q || h0.it.t}”</p><p class="qa-dim">${h0.it.r || h0.it.d || ""}</p></div>`)
           + `<div class="qa-card"><p class="qa-dim">সম্পর্কিত আরও ফলাফল:</p><ul class="qa-mini">${listHtml}</ul></div>`,
       segments:[{ t:seg, lang:"bn" }]
@@ -687,8 +732,8 @@ async function qaAnswer(raw){
   }
 
   return {
-    title:"প্রশ্নটি বুঝতে পারিনি",
-    note:"চেষ্টা করুন — যেমন: “সূরা আল-ইমরানের বাংলা অনুবাদ পড়ে শোনাও”, “আয়াতুল কুরসি শোনাও”, “কুরআনে কতটি সূরা আছে”, “মা-বাবার দোয়া”, “আজকের নামাজের সময়”। আরও বড় পরিসরের প্রশ্নের নির্ভুল উত্তরের জন্য জেমিনি AI সংযুক্ত করুন — নিচের ⚙ AI সেটিংস দেখুন।",
+    title:"প্রশ্নটি এবার ঠিকমতো নেওয়া গেল না",
+    note:"কারণ: " + (qaAIState.lastWhy || "অ্যাপের ভাণ্ডারে সরাসরি মিল পাইনি") + "। একটু পরে আবার করুন বা ভাষা বদলিয়ে লিখুন — যেমন: “সূরা ফাতিহার অনুবাদ শোনাও”, “কুরআনে কতটি সূরা আছে”, “রোজা ভাঙার বিষয়গুলো কী”।",
     html:""
   };
 }
@@ -824,14 +869,20 @@ async function qaGeminiDirect(q, ctx, key){
   }
   throw new Error("gemini-direct-fail");
 }
+const qaAIState = { lastWhy: "" };
 async function qaGemini(q, ctx){
+  qaAIState.lastWhy = "";
   try {
     const key = qaGeminiKey();
     if (key){
-      try { return await qaGeminiDirect(q, ctx, key); } catch(e){}
+      try { return await qaGeminiDirect(q, ctx, key); }
+      catch(e){ qaAIState.lastWhy = "কী-সরাসরি সংযোগ ব্যর্থ"; }
     }
     return await qaGeminiViaServer(q, ctx);
-  } catch(e){ return ""; }
+  } catch(e){
+    if (!qaAIState.lastWhy) qaAIState.lastWhy = "সংযোগ/কোটা — এই মুহূর্তে AI পাওয়া যায়নি";
+    return "";
+  }
 }
 function qaCtxSummary(hits){
   if (!hits || !hits.length) return "";
@@ -928,6 +979,14 @@ function pageAsk(){
           <button class="qa-btn gold" id="qaKeySave">সংরক্ষণ</button>
           <button class="qa-btn" id="qaKeyClear">মুছুন</button>
         </div>
+        <div class="qa-set-row" style="margin-top:10px">
+          <label class="qa-dim" style="margin:0">কণ্ঠ-ইঞ্জিন:</label>
+          <select id="qaTtsSel" class="ask-lang">
+            <option value="auto">সয়ংক্রিয় (সুপারিশকৃত)</option>
+            <option value="online">অনলাইন ইঞ্জিন (ইন্টারনেট লাগে — প্রায় সব ফোনে বাজে)</option>
+            <option value="device">ডিভাইসের নিজের কণ্ঠ (অফলাইনে চলে)</option>
+          </select>
+        </div>
         <p class="qa-ai-status" id="qaAiStatus">…</p>
         <p class="qa-dim" style="margin-top:4px">ফ্রি কী বানাতে: <span class="qa-mono">aistudio.google.com</span> → “Get API key” → “Create API key”।</p>
       </div>
@@ -946,18 +1005,69 @@ function pageAsk(){
 let qaRec = null, qaListening = false, qaVoiceInputUsed = false;
 function qaInitVoice(){
   const mic = $("#askMic"); if (!mic) return;
+  const langWrap = $("#askLangWrap");
+  const nosr = $("#askNoSR");
+  /* অ্যাপ (ওয়েবভিউ)-এর ভেতরে: নেটিভ স্পিচ-রিকগনাইজার ব্রিজ */
+  let nativeOk = false;
+  if (typeof window.AndroidQASR !== "undefined"){
+    try { nativeOk = !!window.AndroidQASR.srAvailable(); } catch(e){ nativeOk = false; }
+  }
+  if (nativeOk){
+    mic.addEventListener("click", ()=>{
+      if (qaListening){ try{ window.AndroidQASR.stopSR(); }catch(e){} return; }
+      qaStartNativeListening();
+    });
+    return;
+  }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const nosr = $("#askNoSR"), langWrap = $("#askLangWrap");
   if (!SR){
     mic.hidden = true;
     if (langWrap) langWrap.hidden = true;
-    if (nosr) nosr.hidden = false;
+    if (nosr){ nosr.hidden = false; nosr.innerHTML = "এই ব্রাউজারে ভয়েস-ইনপুট চালু নেই — মোবাইল হলে কিবোর্ডের (Gboard-এর) মাইক আইকন চেপ৓েও বলে লিখতে পারেন, অথবা টাইপ করুন।"; }
     return;
   }
   mic.addEventListener("click", ()=>{
     if (qaListening){ try{ qaRec.stop(); }catch(e){} return; }
     qaStartListening();
   });
+}
+
+/* --- অ্যাপের নেটিভ মাইক (Java ব্রিজ: window.AndroidQASR) --- */
+function qaStartNativeListening(){
+  const mic = $("#askMic"), stat = $("#askMicStat"), wave = $("#askWave");
+  const inp = $("#askInput");
+  const langSel = $("#askLang");
+  const lang = langSel ? langSel.value : "bn-BD";
+  qaListening = true;
+  qaVoiceInputUsed = true;
+  let finalTxt = "";
+  if (mic) mic.classList.add("live");
+  if (stat){ stat.hidden = false; stat.textContent = "🎙 শুনছি — বলুন…"; }
+  if (wave) wave.hidden = false;
+  window.qaNativeSR = {
+    partial(t2){ if (inp) inp.value = (finalTxt ? finalTxt + " " : "") + t2; },
+    final(t2){
+      finalTxt = (finalTxt ? finalTxt + " " : "") + t2;
+      if (inp) inp.value = finalTxt;
+      qaNativeCleanup(); qaSubmit();
+    },
+    error(msg){
+      qaNativeCleanup();
+      if (stat){ stat.hidden = false; stat.textContent = "🎙 " + msg + " — আবার চেষ্টা করুন।"; setTimeout(()=>{ if (stat) stat.hidden = true; }, 3200); }
+    },
+    end(){ qaNativeCleanup(); if (finalTxt.trim()) qaSubmit(); }
+  };
+  function qaNativeCleanup(){
+    qaListening = false;
+    if (mic) mic.classList.remove("live");
+    if (wave) wave.hidden = true;
+    if (stat) stat.hidden = true;
+  }
+  try { window.AndroidQASR.startSR(lang); }
+  catch(e){
+    qaNativeCleanup();
+    if (stat){ stat.hidden = false; stat.textContent = "নেটিভ ভয়েস-ইনপুট চালু হয়নি — টাইপ করুন।"; }
+  }
 }
 function qaStartListening(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1062,6 +1172,14 @@ function bindAsk(){
     try { localStorage.setItem("qh.geminiKey", k); } catch(e){}
     qaAiStatusSet("নিজের কী সংরক্ষণ হয়েছে ✓ — এবার উত্তর জেমিনি AI থেকে আসবে।", true);
   });
+  const tsel = $("#qaTtsSel");
+  if (tsel){
+    try { tsel.value = qaTtsPref(); } catch(e){}
+    tsel.addEventListener("change", ()=>{
+      try { localStorage.setItem("qh.ttsEngine", tsel.value); } catch(e){}
+      qaStopSpeech();
+    });
+  }
   const kc = $("#qaKeyClear");
   if (kc) kc.addEventListener("click", ()=>{
     try { localStorage.removeItem("qh.geminiKey"); } catch(e){}
