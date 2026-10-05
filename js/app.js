@@ -592,6 +592,7 @@ setInterval(azanTick, 1000);
 const TABS = [
   { id:"home",    label:"হোম",      icon:I.home },
   { id:"azan",    label:"আযান",     icon:I.azan },
+  { id:"ask",     label:"অনুসন্ধান",  icon:I.search },
   { id:"dua",     label:"দোয়া",     icon:I.dua },
   { id:"hadith",  label:"হাদিস",     icon:I.hadith },
   { id:"quran",   label:"কুরআন",     icon:I.quran },
@@ -613,6 +614,7 @@ function renderTabbar(){
     duaQuery = ""; duaCat = "all"; quranQuery = "";
     openHadiths.clear();
     stopAudio();
+    if (typeof qaStopSpeech === "function") qaStopSpeech();
     render();
     window.scrollTo({ top:0, behavior:"instant" });
   }));
@@ -625,6 +627,7 @@ function render(){
   v.classList.add("pattern");
   if (tab === "home")        v.innerHTML = pageHome();
   else if (tab === "azan")   v.innerHTML = pageAzan();
+  else if (tab === "ask")    v.innerHTML = (typeof pageAsk === "function") ? pageAsk() : "";
   else if (tab === "dua")    v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (tab === "hadith") v.innerHTML = pageHadith();
   else if (tab === "marks")   v.innerHTML = pageMarks();
@@ -1257,6 +1260,8 @@ function bindReaderMarks(){
   });
 }
 function bind(){
+  /* অনুসন্ধান পাতার বাইন্ডিং */
+  if (typeof bindAsk === "function") bindAsk();
   /* dua */
   const ds = $("#duaSearch");
   if (ds) ds.addEventListener("input", e => {
@@ -1560,6 +1565,7 @@ function bind(){
 function renderTabOnly(which, after){
   const v = $("#view");
   if (which === "azan") v.innerHTML = pageAzan();
+  else if (which === "ask") v.innerHTML = (typeof pageAsk === "function") ? pageAsk() : "";
   else if (which === "dua") v.innerHTML = detailDua !== null ? pageDuaDetail() : pageDua();
   else if (which === "quran") v.innerHTML = readerSurah ? pageReaderShell() : pageQuran();
   bind();
