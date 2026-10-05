@@ -110,16 +110,45 @@ async function qaGetSurah(n){
 }
 
 /* -------------------- স্পিচ-ইঞ্জিন (টেক্সট→কণ্ঠ) -------------------- */
-const qaSpeech = { list:[], idx:0, playing:false, paused:false, last:null };
+const qaSpeech = { list:[], idx:0, playing:false, paused:false, errs:0, engine:"none", last:null };
+const qaAudio = { el:null, retried:0 };
+
 function qaSupportsTTS(){ return typeof window !== "undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function"; }
 function qaVoicesNow(){ try { return qaSupportsTTS() ? window.speechSynthesis.getVoices() : []; } catch(e){ return []; } }
 function qaHasVoice(langPrefix){
   const lp = langPrefix.toLowerCase();
   return qaVoicesNow().some(v => v && v.lang && v.lang.toLowerCase().replace(/_/g,"-").startsWith(lp));
 }
+/* অনলাইন কণ্ঠ-ইঞ্জিন (Google Translate TTS) — ডিভাইসে বাংলা/আরবি ভয়েস না থাকলেও
+   প্রায় সব ব্রাউজার/ফোনে কাজ করে; ইন্টারনেট প্রয়োজন */
+function qaSupportsGTTS(){ return typeof window !== "undefined" && typeof window.Audio === "function"; }
+function qaTtsUrl(txt, lang){
+  return "https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" + (lang === "ar" ? "ar" : "bn") + "&q=" + encodeURIComponent(txt);
+}
+function qaChunkForGT(txt, lim){
+  lim = lim || 165;
+  const sents = String(txt).match(/[^।.!?\n]{1,1}[^।.!?\n]*[।.!?]?/g) || [txt];
+  const out = []; let cur = "";
+  for (let s of sents){
+    s = s.trim(); if (!s) continue;
+    while (s.length > lim){ const cut = s.lastIndexOf(" ", lim); out.push(s.slice(0, cut > 60 ? cut : lim)); s = s.slice(cut > 60 ? cut : lim).trim(); }
+    if ((cur + " " + s).trim().length <= lim) cur = cur ? cur + " " + s : s;
+    else { if (cur) out.push(cur); cur = s; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function qaChooseEngine(){
+  /* স্থানীয় বাংলা কণ্ঠ পেলে ডিভাইস-স্পিচ; নাহলে অনলাইন ইঞ্জিন */
+  if (qaSupportsTTS() && qaHasVoice("bn")) return "ws";
+  if (qaSupportsGTTS()) return "gt";
+  if (qaSupportsTTS()) return "ws";
+  return "none";
+}
 function qaStopSpeech(){
   qaSpeech.list = []; qaSpeech.idx = 0; qaSpeech.playing = false; qaSpeech.paused = false;
   if (qaSupportsTTS()){ try { window.speechSynthesis.cancel(); } catch(e){} }
+  if (qaAudio.el){ try { qaAudio.el.onended = null; qaAudio.el.onerror = null; qaAudio.el.pause(); qaAudio.el.src = ""; } catch(e){} }
   qaPlayerUpdate();
 }
 if (typeof window !== "undefined" && qaSupportsTTS()){
@@ -127,18 +156,34 @@ if (typeof window !== "undefined" && qaSupportsTTS()){
 }
 
 function qaSegmentsSpeak(list){
-  qaSpeech.list = list;
+  qaSpeech.engine = qaChooseEngine();
+  if (qaSpeech.engine === "gt"){
+    /* অনলাইন ইঞ্জিনের অনুরোধ সীমায় ছোট ছোট করে ভাঙি */
+    qaSpeech.list = (list || []).reduce((acc, seg) => {
+      qaChunkForGT(seg.t).forEach(p => acc.push({ t: p, lang: seg.lang }));
+      return acc;
+    }, []);
+  } else {
+    qaSpeech.list = (list || []).slice();
+  }
   qaSpeech.idx = 0;
   qaSpeech.errs = 0;
   qaPlayerUpdate();
-  if (list.length) qaPlayCurrent();
+  if (qaSpeech.list.length) qaPlayCurrent();
 }
 function qaPlayCurrent(){
-  if (!qaSupportsTTS() || qaSpeech.idx >= qaSpeech.list.length){ qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); return; }
+  if (qaSpeech.idx >= qaSpeech.list.length){ qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); return; }
+  if (qaSpeech.engine === "gt"){ qaPlayCurrentGT(); return; }
+  if (qaSpeech.engine === "ws"){ qaPlayCurrentWS(); return; }
+  qaSpeech.playing = false; qaPlayerUpdate();
+}
+
+/* --- ইঞ্জিন ১: ডিভাইসের speechSynthesis (অফলাইন) --- */
+function qaPlayCurrentWS(){
+  if (!qaSupportsTTS()){ qaSpeech.playing = false; qaPlayerUpdate(); return; }
   const seg = qaSpeech.list[qaSpeech.idx];
   const u = new window.SpeechSynthesisUtterance(seg.t);
-  const lang = seg.lang === "ar" ? "ar-SA" : (seg.lang === "en" ? "en-US" : "bn-BD");
-  u.lang = lang;
+  u.lang = seg.lang === "ar" ? "ar-SA" : (seg.lang === "en" ? "en-US" : "bn-BD");
   u.rate = seg.lang === "ar" ? 0.85 : 0.95;
   u.pitch = 1;
   window.speechSynthesis.cancel();
@@ -146,29 +191,73 @@ function qaPlayCurrent(){
   qaPlayerUpdate(seg);
   u.onend = function(){
     qaSpeech.idx++;
-    if (qaSpeech.idx < qaSpeech.list.length) qaPlayCurrent();
-    else { qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); }
+    qaPlayCurrent();
   };
   u.onerror = function(e){
     const kind = e && e.error ? String(e.error) : "";
-    /* আমাদের নিজেদের cancel-জনিত বাধা বাদ দই */
     if (kind === "canceled" || kind === "interrupted"){ return; }
-    qaSpeech.errs = (qaSpeech.errs || 0) + 1;
-    qaSpeech.idx++;
-    if (qaSpeech.errs >= 2){
-      /* কণ্ঠই চালানো যাচ্ছে না — ডিভাইসের দিকে আঙুল তুলে বার্তা দিই */
-      qaSpeech.playing = false; qaSpeech.paused = false;
-      try { window.speechSynthesis.cancel(); } catch(err){}
-      const el = $("#qaNow");
-      if (el) el.innerHTML = "⚠️ এই ডিভাইসে কণ্ঠ চালানো যাচ্ছে না — ব্যবহারকারী নির্দেশনা: সেটিংস → ভাষা/টেক্সট-টু-স্পিচ → <b>বাংলা (এবং আরবি)</b> ভয়েস ডাউনলোড/সক্রিয় করে আবার চাপুন।";
-      const tot2 = $("#qaProg"); if (tot2) tot2.textContent = "";
+    qaSpeech.errs++;
+    /* স্থানীয় কণ্ঠে দুইবার ব্যর্থ — অনলাইন ইঞ্জিনে সয়ংক্রিয় চলে যাই */
+    if (qaSpeech.errs >= 2 && qaSupportsGTTS()){
+      qaSwitchToGTFromHere();
       return;
     }
-    if (qaSpeech.idx < qaSpeech.list.length) qaPlayCurrent();
-    else { qaSpeech.playing = false; qaSpeech.paused = false; qaPlayerUpdate(); }
+    qaSpeech.idx++;
+    qaPlayCurrent();
   };
-  try { window.speechSynthesis.speak(u); } catch(e){ qaSpeech.playing = false; qaPlayerUpdate(); }
+  try { window.speechSynthesis.speak(u); } catch(e){
+    if (qaSupportsGTTS()) qaSwitchToGTFromHere();
+    else { qaSpeech.playing = false; qaPlayerUpdate(); }
+  }
 }
+function qaSwitchToGTFromHere(){
+  if (!qaAudio.el){ /* এখান থেকে অবশিষ্টাংশ অনলাইন ইঞ্জিনে */ }
+  const done = qaSpeech.list.slice(0, qaSpeech.idx);
+  const rest = qaSpeech.list.slice(qaSpeech.idx);
+  const restFlat = [];
+  rest.forEach(seg => qaChunkForGT(seg.t).forEach(p => restFlat.push({ t: p, lang: seg.lang })));
+  qaSpeech.list = done.concat(restFlat);
+  qaSpeech.engine = "gt";
+  qaPlayCurrent();
+}
+
+/* --- ইঞ্জিন ২: অনলাইন Google TTS অডিও --- */
+function qaPlayCurrentGT(){
+  const seg = qaSpeech.list[qaSpeech.idx];
+  if (!qaAudio.el) qaAudio.el = new window.Audio();
+  const el = qaAudio.el;
+  el.onended = null; el.onerror = null;
+  try { el.pause(); } catch(e){}
+  el.src = qaTtsUrl(seg.t, seg.lang);
+  qaAudio.retried = 0;
+  qaSpeech.playing = true; qaSpeech.paused = false;
+  qaPlayerUpdate(seg);
+  el.onended = function(){
+    qaSpeech.idx++;
+    qaPlayCurrent();
+  };
+  el.onerror = function(){
+    qaAudio.retried++;
+    if (qaAudio.retried <= 1){ setTimeout(()=>{ try{ el.src = qaTtsUrl(seg.t, seg.lang); const p2 = el.play(); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }, 900); return; }
+    qaSpeech.playing = false;
+    const now2 = $("#qaNow");
+    if (now2) now2.innerHTML = "⚠️ অনলাইন কণ্ঠ-ইঞ্জিনে পৌঁছানো যাচ্ছে না — ইন্টারনেট সংযোগ দেখে আবার ▶ চাপুন।";
+  };
+  const pr = el.play();
+  if (pr && pr.catch) pr.catch(err => {
+    const name = (err && err.name) || "";
+    if (name === "NotAllowedError"){
+      /* ব্রাউজার সয়ংক্রিয় অডিওর অনুমতি চায় — ব্যবহারকারীকে বাটনে ঠেলামর */
+      qaSpeech.playing = false; qaSpeech.paused = false;
+      const nowEl = $("#qaNow");
+      if (nowEl) nowEl.innerHTML = "কণ্ঠ শুরু করতে ▶ <b>শুনুন</b>-এ একবার চাপুন (ব্রাউজারের অনুমতি দরকার)।";
+      qaPlayerUpdate(seg);
+      return;
+    }
+    if (el.onerror) el.onerror();
+  });
+}
+
 function qaPlayerUpdate(currentSeg){
   const pb = $("#qaPlayer"); if (!pb) return;
   const btnP = $("#qaReplay"), btnR = $("#qaPause"), tot = $("#qaProg"), now = $("#qaNow");
@@ -184,10 +273,11 @@ function qaPlayerUpdate(currentSeg){
 /* -------------------- উত্তর রেন্ডার -------------------- */
 function qaRenderRes(res, autoSpeak){
   const box = $("#askResult"); if (!box) return;
-  const ttsOK = qaSupportsTTS();
-  const wantsBn = !!(res.segments && res.segments.length && res.segments.some(s => s.lang === "bn"));
-  const vwarn = (ttsOK && wantsBn && !qaHasVoice("bn")) ?
-    `<p class="qa-vwarn">⚠️ আপনার ডিভাইসে বাংলা কণ্ঠ খুঁজে পাওয়া যায়নি। কিছু না শুনলে — সেটিংস → ভাষা/টেক্সট-টু-স্পিচ → বাংলা ভয়েস ডাউনলোড করে আবার চেষ্টা করুন। (কিছু ডিভাইসে স্বয়ংক্রিয়ভাবে কাজ করতে পারে।)</p>` : "";
+  const hasSegs = !!(res.segments && res.segments.length);
+  const engine = hasSegs ? qaChooseEngine() : "none";
+  const ttsOK = engine !== "none";
+  const vwarn = (engine === "gt") ?
+    `<p class="qa-vwarn">ℹ️ এই ডিভাইসে স্থানীয় বাংলা কণ্ঠ নেই, তাই শোনানো হচ্ছে অনলাইন কণ্ঠ-ইঞ্জিনে — ইন্টারনেট সংযুক্ত রাখুন। (<span class="qa-mono">▶ শুনুন</span> চাপলেই শুরু)</p>` : "";
   box.innerHTML = `
   <section class="qa-ans">
     ${res.title ? `<h3 class="qa-title">${res.title}</h3>` : ""}
@@ -203,7 +293,7 @@ function qaRenderRes(res, autoSpeak){
         </div>
         <p class="qa-now" id="qaNow"></p>
       </div>
-    ${vwarn}` : `<p class="qa-note">এই ডিভাইসে কণ্ঠে শোনার ব্যবস্থা (টেক্সট-টু-স্পিচ) নেই — লেখাটি নিচে পড়ুন।</p>`) : ""}
+    ${vwarn}` : `<p class="qa-note">এই পরিবেশে কণ্ঠে শোনানো যাচ্ছে না — লেখাটি নিচে পড়ুন।</p>`) : ""}
     <div class="qa-body">${res.html || ""}</div>
     ${res.moreBtn ? `<button class="qa-btn gold qa-more" id="qaMoreBtn">${I.play} পরের অংশ শোনাও</button>` : ""}
   </section>`;
@@ -216,6 +306,12 @@ function qaRenderRes(res, autoSpeak){
   });
   const pz = $("#qaPause");
   if (pz) pz.addEventListener("click", ()=>{
+    if (qaSpeech.engine === "gt"){
+      if (!qaAudio.el) return;
+      if (qaSpeech.paused){ const pr = qaAudio.el.play(); if (pr && pr.catch) pr.catch(()=>{}); qaSpeech.paused = false; pz.innerHTML = I.pause + " বিরতি"; }
+      else { qaAudio.el.pause(); qaSpeech.paused = true; pz.innerHTML = I.play + " চালিয়ে যান"; }
+      return;
+    }
     if (!qaSupportsTTS()) return;
     if (qaSpeech.paused){ window.speechSynthesis.resume(); qaSpeech.paused = false; pz.innerHTML = I.pause + " বিরতি"; }
     else { window.speechSynthesis.pause(); qaSpeech.paused = true; pz.innerHTML = I.play + " চালিয়ে যান"; }
@@ -226,7 +322,7 @@ function qaRenderRes(res, autoSpeak){
   const mb = $("#qaMoreBtn");
   if (mb) mb.addEventListener("click", ()=>{ qaContinueLast(); });
 
-  if (autoSpeak && res.segments && res.segments.length && ttsOK){
+  if (autoSpeak && res.segments && res.segments.length && engine !== "none"){
     qaSegmentsSpeak(res.segments);
   } else {
     qaSpeech.list = res.segments ? res.segments.slice() : [];
@@ -311,6 +407,76 @@ function qaContinueLast(){
   p.then(res => qaRenderRes(res, true)).catch(()=>{ qaRenderRes({ title:"দুঃখিত", note:"অংশটি এই মুহূর্তে আনা যায়নি — ইন্টারনেট পরীক্ষা করুন।", html:"" }, false); });
 }
 
+
+/* -------------------- কুরআন-সংক্রান্ত সাধারণ জ্ঞান (অ্যাপ-ডেটা থেকে হিসাব) -------------------- */
+function qaQuranStats(){
+  const suras = SURAH_META.length;
+  const ayahs = SURAH_META.reduce((s, m) => s + m[4], 0);
+  const madani = SURAH_META.filter(m => m[5] === 1).length;
+  const longest = SURAH_META.reduce((a, b) => (b[4] > a[4] ? b : a));
+  const minLen = Math.min.apply(null, SURAH_META.map(m => m[4]));
+  const shorts = SURAH_META.filter(m => m[4] === minLen);
+  return { suras, ayahs, madani, makki: suras - madani, longest, minLen, shorts };
+}
+const QA_PROPHETS = ["আদম","ইদরিস","নূহ","হুদ","সালেহ","লুত","ইব্রাহিম","ইসমাইল","ইসহাক","ইয়াকুব","ইউসুফ","শোয়াইব","আইয়ুব","যুলকিফল","মুসা","হারুণ","দাউদ","সুলাইমান","ইলিয়াস","আল-ইয়াসা","ইউনুস","যাকারিয়া","ইয়াহ্যা","ঈসা","মুহাম্মাদ (সা.)"];
+const QA_PROP_SURAS = [10, 11, 12, 14, 47, 71]; /* ইউনুস, হুদ, ইউসুফ, ইব্রাহিম, মুহাম্মদ, নূহ */
+
+function qaStatsAnswer(qn){
+  const scope = /কুরআন|কোরআন|কালাম|মজিদ/.test(qn);
+  const asksCount = /কত|কয়/.test(qn);
+  const st = qaQuranStats();
+
+  /* পাড়া */
+  if (/পাড়া|পারা/.test(qn) && asksCount){
+    const txt = "পবিত্র কুরআন ৩০টি পাড়ায় (জুজ) বিভক্ত — প্রথম পাড়া “আলিফ লাম মীম” (সূরা ফাতিহা থেকে) এবং শেষ পাড়া “আম্মা” (সূরা নাবা থেকে)।";
+    return { title:"কুরআনের পাড়া", html:`<div class="qa-card"><p>${txt}</p></div>`, segments:[{ t:txt, lang:"bn" }] };
+  }
+  /* সূরার সংখ্যা */
+  if (asksCount && /সূরা/.test(qn) && !qaFindSurah(qaExtractAyahReq(qn).clipped)){
+    const txt = "পবিত্র কুরআনে মোট ১১৪টি সূরা আছে। এর মধ্যে মাক্কি সূরা " + bn(st.makki) + "টি এবং মাদানি সূরা " + bn(st.madani) + "টি। মোট আয়াত " + bn(st.ayahs) + "টি এবং ৩০টি পাড়ায় বিভক্ত।";
+    const html = `<div class="qa-card">
+      <p class="qa-quote">পবিত্র কুরআনে সূরা রয়েছে — <b style="font-size:1.2em;color:var(--gold)">১১৪টি</b></p>
+      <p class="qa-dim">• মাক্কি সূরা — ${bn(st.makki)}টি (হিজরতের আগে নাজিল)<br>• মাদানি সূরা — ${bn(st.madani)}টি (হিজরতের পরে নাজিল)<br>• মোট আয়াত — ${bn(st.ayahs)}টি  •  পাড়া — ৩০টি</p>
+    </div>`;
+    return { title:"কুরআনে সূরার সংখ্যা", html, segments:[{ t:txt, lang:"bn" }] };
+  }
+  /* আয়াতের সংখ্যা */
+  if (asksCount && /আয়াত/.test(qn) && scope && !qaFindSurah(qaExtractAyahReq(qn).clipped)){
+    const txt = "পবিত্র কুরআনে মোট " + bn(st.ayahs) + "টি আয়াত। সবচেয়ে বেশি আয়াতবিশিষ্ট সূরা আল-বাকারা — ২৮৬ আয়াত।";
+    return { title:"কুরআনে আয়াতের সংখ্যা", html:`<div class="qa-card"><p>${txt}</p></div>`, segments:[{ t:txt, lang:"bn" }] };
+  }
+  /* সবচেয়ে বড়/ছোট সূরা */
+  if (scope && /বড়|বৃহত্তম|দীর্ঘতম|লম্বা|বেশি আয়াত/.test(qn) && /সূরা/.test(qn)){
+    const m = st.longest;
+    const txt = "আয়াত-সংখ্যায় কুরআনের সবচেয়ে বড় সূরা — সূরা " + m[2] + " (" + bn(m[4]) + " আয়াত)। এটি কুরআনের " + bn(m[0]) + " নম্বর সূরা।";
+    return { title:"সবচেয়ে বড় সূরা", html:`<div class="qa-card"><p class="qa-quote">${m[2]}</p><p class="qa-dim">${bn(m[4])} আয়াত • ${bn(m[0])} নম্বর সূরা</p></div>`, segments:[{ t:txt, lang:"bn" }] };
+  }
+  if (scope && /ছোট|ক্ষুদ্রতম|সংক্ষিপ্ততম|কম আয়াত/.test(qn) && /সূরা/.test(qn)){
+    const names = st.shorts.map(m => m[2]).join(", ");
+    const txt = "আয়াত-সংখ্যায় কুরআনের সবচেয়ে ছোট সূরাগুলোর প্রতিটিতে মাত্র " + bn(st.minLen) + "টি আয়াত — সেগুলো হলো: " + names + "।";
+    return { title:"সবচেয়ে ছোট সূরা", html:`<div class="qa-card"><p class="qa-quote">${names}</p><p class="qa-dim">প্রতিটিতে মাত্র ${bn(st.minLen)}টি আয়াত</p></div>`, segments:[{ t:txt, lang:"bn" }] };
+  }
+  /* মাক্কি/মাদানি সংখ্যা */
+  if (asksCount && /মাক্কি|মাদানি/.test(qn)){
+    const txt = "কুরআনের ১১৪টি সূরার মধ্যে মাক্কি সূরা " + bn(st.makki) + "টি এবং মাদানি সূরা " + bn(st.madani) + "টি।";
+    return { title:"মাক্কি-মাদানি সূরা", html:`<div class="qa-card"><p>${txt}</p></div>`, segments:[{ t:txt, lang:"bn" }] };
+  }
+  /* নবীদের নাম */
+  if (/নবী|রসূল|পয়গম্বর/.test(qn) && /কোন কোন|কতজন|কত জন|তালিকা|নামগুলো|নাম আছে|নামসমূহ/.test(qn)){
+    const suraNames = QA_PROP_SURAS.map(n => SURAH_META.find(m => m[0] === n)[2]).join(", ");
+    const segTxt = "কুরআনে সরাসরি নাম উল্লেখ আছে পঁচিশ জন নবীর। তারা হলেন — " +
+      QA_PROPHETS.join(", ") + "। এর মধ্যে মূসা আলাইহিস সালাম-এর নাম সবচেয়ে বেশি বার এসেছে। আর ছয় জন নবীর নামে সূরা আছে — " + suraNames + "।";
+    const chips = QA_PROPHETS.map(n => `<span class="qa-chip" style="cursor:default">${n}</span>`).join("");
+    const html = `<div class="qa-card">
+      <p class="qa-quote">কুরআনে <b style="color:var(--gold)">২৫ জন নবীর</b> নাম সরাসরি উল্লেখ আছে</p>
+      <div class="ask-chips" style="margin-top:8px">${chips}</div>
+      <p class="qa-dim" style="margin-top:10px">সবচেয়ে বেশি উল্লেখিত নবী — মূসা (আ.)। ছয় জন নবীর নামে সূরা রয়েছে: ${suraNames}।</p>
+    </div>`;
+    return { title:"কুরআনে উল্লেখিত নবীদের নাম", html, segments: qaTextToBnSegs(segTxt) };
+  }
+  return null;
+}
+
 /* -------------------- উত্তর-ইঞ্জিন -------------------- */
 async function qaAnswer(raw){
   const qn = qaNorm(raw);
@@ -375,6 +541,12 @@ async function qaAnswer(raw){
       html:`<div class="qa-card"><p><b>${en}</b><br>${bnD}${ar ? "<br>" + ar : ""}<br><span class="qa-dim">${wd}বার — হিজরি তারিখ চাঁদ দেখা সাপেক্ষে একদিন আগে-পরে হতে পারে</span></p></div>`,
       segments:[{ t:txt, lang:"bn" }]
     };
+  }
+
+  /* ৩.৫ কুরআন-সংক্রান্ত সাধারণ জ্ঞান — সূরা-ইনটেন্টের আগে, যাতে "কতটি সূরা"-জাতীয় প্রশ্ন ভুল পথে না যায় */
+  {
+    const statAns = qaStatsAnswer(qn);
+    if (statAns) return statAns;
   }
 
   /* ৪. সূরা-ইনটেন্ট — আয়াতের অংশ আগে আলাদা, তারপর সূরা খোঁজা; সুনির্দিষ্ট আয়াত বললে শুধু সেটুকুই আনা হয় */
@@ -516,7 +688,7 @@ async function qaAnswer(raw){
 
   return {
     title:"প্রশ্নটি বুঝতে পারিনি",
-    note:"চেষ্টা করুন — যেমন: “সূরা আল-ইমরানের বাংলা অনুবাদ পড়ে শোনাও”, “আয়াতুল কুরসি শোনাও”, “মা-বাবার দোয়া”, “আজকের নামাজের সময়”, “নিয়ত নিয়ে হাদিস”",
+    note:"চেষ্টা করুন — যেমন: “সূরা আল-ইমরানের বাংলা অনুবাদ পড়ে শোনাও”, “আয়াতুল কুরসি শোনাও”, “কুরআনে কতটি সূরা আছে”, “মা-বাবার দোয়া”, “আজকের নামাজের সময়”। আরও বড় পরিসরের প্রশ্নের নির্ভুল উত্তরের জন্য জেমিনি AI সংযুক্ত করুন — নিচের ⚙ AI সেটিংস দেখুন।",
     html:""
   };
 }
@@ -712,7 +884,9 @@ function pageAsk(){
     "আজকের নামাজের সময় কটা",
     "আজ কয় তারিখ",
     "দানের ফজিলত নিয়ে হাদিস",
-    "আজকের বাণী শোনাও"
+    "আজকের বাণী শোনাও",
+    "কুরআনে কতটি সূরা আছে",
+    "কুরআনে কোন কোন নবীর নাম আছে"
   ].map(c => `<button class="qa-chip" data-qa-chip="${c}">${c}</button>`).join("");
 
   return `
