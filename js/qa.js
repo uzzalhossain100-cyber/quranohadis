@@ -125,6 +125,15 @@ function qaSupportsGTTS(){ return typeof window !== "undefined" && typeof window
 function qaTtsUrl(txt, lang){
   return "https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" + (lang === "ar" ? "ar" : "bn") + "&q=" + encodeURIComponent(txt);
 }
+function qaTtsProxyUrl(txt, lang){
+  /* সার্ভার-প্রক্সি: আইএসপি/ডিভাইস থেকে গুগল-ডোমেইন না পৌঁছালে এই পথ */
+  let base = "";
+  try {
+    if (typeof location !== "undefined" && /^https?:/.test(location.protocol)) base = location.origin;
+    else base = "https://quranohadis.vercel.app";
+  } catch(e){ base = "https://quranohadis.vercel.app"; }
+  return base + "/api/tts?tl=" + (lang === "ar" ? "ar" : "bn") + "&q=" + encodeURIComponent(txt);
+}
 function qaChunkForGT(txt, lim){
   lim = lim || 165;
   const sents = String(txt).match(/[^।.!?\n]{1,1}[^।.!?\n]*[।.!?]?/g) || [txt];
@@ -274,13 +283,20 @@ function qaPlayCurrentGT(){
   };
   el.onerror = function(){
     qaAudio.retried++;
-    if (qaAudio.retried <= 1){ setTimeout(()=>{ try{ el.src = qaTtsUrl(seg.t, seg.lang); const p2 = el.play(); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }, 900); return; }
+    if (qaAudio.retried === 1){
+      /* সরাসরি গুগল-ডোমেইন ব্যর্থ → আমাদের সার্ভার-প্রক্সি দিয়ে চেষ্টা */
+      setTimeout(()=>{ try{ el.src = qaTtsProxyUrl(seg.t, seg.lang); const p2 = el.play(); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }, 400); return;
+    }
+    if (qaAudio.retried <= 3){
+      /* প্রক্সি/সরাসরি পথে আরও কিছু পুনঃচেষ্টা */
+      setTimeout(()=>{ try{ el.src = (qaAudio.retried === 2 ? qaTtsUrl(seg.t, seg.lang) : qaTtsProxyUrl(seg.t, seg.lang)); const p2 = el.play(); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }, 900); return;
+    }
     /* এই খণ্ডটি বাদ দিয়ে পরেরটা চেষ্টা করি; টানা ৩টি ব্যর্থ হলে থেমে এলার্ট */
     qaAudio.gtfails = (qaAudio.gtfails || 0) + 1;
     if (qaAudio.gtfails >= 3){
       qaSpeech.playing = false;
       const now2 = $("#qaNow");
-      if (now2) now2.innerHTML = "⚠️ অনলাইন কণ্ঠ-ইঞ্জিনে পৌঁছানো যাচ্ছে না — ইন্টারনেট সংযোগ দেখে আবার ▶ চাপুন।";
+      if (now2) now2.innerHTML = "⚠️ অনলাইন কণ্ঠ-সার্ভার এ মুহূর্তে পৌঁছানো যাচ্ছে না — কিছুক্ষণ পর আবার ▶ চাপুন (অথবা AI সেটিংসে ‘ডিভাইসের কণ্ঠ’ বেছে নিন)।";
       return;
     }
     qaSpeech.idx++;
